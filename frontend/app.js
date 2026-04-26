@@ -5,12 +5,12 @@ const ITINERARY_API = 'http://127.0.0.1:8002';
 const airportIcon = L.divIcon({
   className: '',
   html: `<div style="
-    background:#1d4ed8;
+    background:#2563eb;
     border:2px solid #93c5fd;
     border-radius:50% 50% 50% 0;
     transform:rotate(-45deg);
     width:28px;height:28px;
-    box-shadow:0 2px 8px rgba(29,78,216,0.5);
+    box-shadow:0 2px 8px rgba(37,99,235,0.5);
     display:flex;align-items:center;justify-content:center;
   "><span style="transform:rotate(45deg);font-size:13px;">✈</span></div>`,
   iconSize: [28, 28],
@@ -19,7 +19,7 @@ const airportIcon = L.divIcon({
 });
 
 // ── Mapa ──────────────────────────────────────────────────────────
-const map = L.map('map', { zoomControl: false }).setView([4.7016, -74.1469], 4);
+const map = L.map('map', { zoomControl: false }).setView([4.7016, -74.1469], 6);
 
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   attribution: '© OpenStreetMap'
@@ -27,28 +27,58 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 
 L.control.zoom({ position: 'bottomleft' }).addTo(map);
 
+if (navigator.geolocation) {
+  navigator.geolocation.getCurrentPosition(
+    pos => map.setView([pos.coords.latitude, pos.coords.longitude], 10),
+    () => map.setView([4.7016, -74.1469], 6)
+  );
+}
+
+// ── Variables globales ────────────────────────────────────────────
+let panelOpen  = false;
+let legCount   = 0;
+let airports   = [];
+let routeLayers = [];
+
+// ── Aeropuertos ───────────────────────────────────────────────────
 async function loadAirports() {
-  const res = await fetch(`${AIRPORT_API}/airports`);
-  const airports = await res.json();
-  airports.forEach(a => {
-    L.marker([a.latitude, a.longitude], { icon: airportIcon })
-      .addTo(map)
-      .bindPopup(`
-        <div style="font-family:'Segoe UI',sans-serif;min-width:160px;">
-          <div style="font-size:18px;font-weight:700;color:#1d4ed8">${a.iata_code}</div>
-          <div style="font-size:13px;font-weight:600;margin:2px 0">${a.name}</div>
-          <div style="font-size:12px;color:#64748b">${a.city}, ${a.country}</div>
-        </div>
-      `);
-  });
+  try {
+    const res = await fetch(`${AIRPORT_API}/airports`);
+    airports = await res.json();
+    airports.forEach(a => {
+      L.marker([a.latitude, a.longitude], { icon: airportIcon })
+        .addTo(map)
+        .bindPopup(`
+          <div style="font-family:'Segoe UI',sans-serif;min-width:160px;">
+            <div style="font-size:16px;font-weight:700;color:#2563eb">${a.iata_code}</div>
+            <div style="font-size:13px;font-weight:600;margin:2px 0;color:#1e293b">${a.name}</div>
+            <div style="font-size:12px;color:#64748b">${a.city}, ${a.country}</div>
+          </div>
+        `);
+    });
+  } catch (e) {
+    console.warn('No se pudo conectar con el servicio de aeropuertos');
+  }
 }
 
-// ── Navbar ────────────────────────────────────────────────────────
-function showMap() {
-  document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
-  event.target.classList.add('active');
+async function loadAirportOptions() {
+  try {
+    if (airports.length === 0) {
+      const res = await fetch(`${AIRPORT_API}/airports`);
+      airports = await res.json();
+    }
+  } catch (e) {
+    console.warn('No se pudo cargar aeropuertos');
+  }
 }
 
+function airportOptions() {
+  return airports.map(a =>
+    `<option value="${a.iata_code}">${a.iata_code} — ${a.city}</option>`
+  ).join('');
+}
+
+// ── Modal ─────────────────────────────────────────────────────────
 function openAbout(e) {
   document.getElementById('about-modal').classList.add('open');
 }
@@ -58,8 +88,6 @@ function closeAbout() {
 }
 
 // ── Panel ─────────────────────────────────────────────────────────
-let panelOpen = false;
-
 function togglePanel() {
   panelOpen = !panelOpen;
   document.body.classList.toggle('panel-open', panelOpen);
@@ -71,20 +99,6 @@ function togglePanel() {
 }
 
 // ── Tramos ────────────────────────────────────────────────────────
-let legCount = 0;
-let airports  = [];
-
-async function loadAirportOptions() {
-  const res = await fetch(`${AIRPORT_API}/airports`);
-  airports = await res.json();
-}
-
-function airportOptions() {
-  return airports.map(a =>
-    `<option value="${a.iata_code}">${a.iata_code} — ${a.city}</option>`
-  ).join('');
-}
-
 function addLegForm() {
   const id  = legCount++;
   const div = document.createElement('div');
@@ -157,34 +171,41 @@ async function createItinerary() {
 
 // ── Cargar itinerarios ────────────────────────────────────────────
 async function loadItineraries() {
-  const res         = await fetch(`${ITINERARY_API}/itineraries`);
-  const itineraries = await res.json();
-  const container   = document.getElementById('itineraries-list');
+  try {
+    const res         = await fetch(`${ITINERARY_API}/itineraries`);
+    const itineraries = await res.json();
+    const container   = document.getElementById('itineraries-list');
 
-  if (itineraries.length === 0) {
-    container.innerHTML = '<p class="empty-state">No tienes itinerarios guardados</p>';
-    return;
-  }
+    if (itineraries.length === 0) {
+      container.innerHTML = '<p class="empty-state">No tienes itinerarios guardados</p>';
+      clearRoutes();
+      return;
+    }
 
-  container.innerHTML = itineraries.map(itin => `
-    <div class="itinerary-card">
-      <div class="itinerary-card-header">
-        <span class="itinerary-title">${itin.title}</span>
-        <button class="btn-danger" onclick="deleteItinerary(${itin.id})">Eliminar</button>
-      </div>
-      ${itin.legs.map(leg => `
-        <div class="leg">
-          <span class="iata">${leg.origin_iata}</span>
-          <span class="arrow">→</span>
-          <span class="iata">${leg.destination_iata}</span>
-          <div class="leg-times">
-            <div>${leg.departure_datetime}</div>
-            <div>${leg.arrival_datetime}</div>
-          </div>
+    container.innerHTML = itineraries.map(itin => `
+      <div class="itinerary-card">
+        <div class="itinerary-card-header">
+          <span class="itinerary-title">${itin.title}</span>
+          <button class="btn-danger" onclick="deleteItinerary(${itin.id})">Eliminar</button>
         </div>
-      `).join('')}
-    </div>
-  `).join('');
+        ${itin.legs.map(leg => `
+          <div class="leg">
+            <span class="iata">${leg.origin_iata}</span>
+            <span class="arrow">→</span>
+            <span class="iata">${leg.destination_iata}</span>
+            <div class="leg-times">
+              <div>${leg.departure_datetime}</div>
+              <div>${leg.arrival_datetime}</div>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    `).join('');
+
+    drawRoutes(itineraries);
+  } catch (e) {
+    console.warn('No se pudo cargar itinerarios');
+  }
 }
 
 // ── Eliminar ──────────────────────────────────────────────────────
@@ -194,6 +215,53 @@ async function deleteItinerary(id) {
   loadItineraries();
 }
 
+// ── Rutas en el mapa ──────────────────────────────────────────────
+function clearRoutes() {
+  routeLayers.forEach(l => map.removeLayer(l));
+  routeLayers = [];
+}
+
+function drawRoutes(itineraries) {
+  clearRoutes();
+  itineraries.forEach(itin => {
+    itin.legs.forEach(leg => {
+      const origin      = airports.find(a => a.iata_code === leg.origin_iata);
+      const destination = airports.find(a => a.iata_code === leg.destination_iata);
+      if (!origin || !destination) return;
+
+      const latlngs = createCurvedLine(
+        [origin.latitude, origin.longitude],
+        [destination.latitude, destination.longitude]
+      );
+
+      const line = L.polyline(latlngs, {
+        color: '#2563eb',
+        weight: 2,
+        opacity: 0.6,
+        dashArray: '6 4'
+      }).addTo(map);
+
+      routeLayers.push(line);
+    });
+  });
+}
+
+function createCurvedLine(from, to) {
+  const points = [];
+  const steps  = 50;
+  const midLat = (from[0] + to[0]) / 2 + Math.abs(to[1] - from[1]) * 0.3;
+  const midLng = (from[1] + to[1]) / 2;
+
+  for (let i = 0; i <= steps; i++) {
+    const t  = i / steps;
+    const t1 = 1 - t;
+    const lat = t1 * t1 * from[0] + 2 * t1 * t * midLat + t * t * to[0];
+    const lng = t1 * t1 * from[1] + 2 * t1 * t * midLng + t * t * to[1];
+    points.push([lat, lng]);
+  }
+
+  return points;
+}
+
 // ── Inicializar ───────────────────────────────────────────────────
 loadAirports();
-loadAirportOptions();
