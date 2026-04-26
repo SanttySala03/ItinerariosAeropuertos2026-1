@@ -57,7 +57,7 @@ body {
 }
 
 #logo {
-  height: 40px;
+  height: 82px;
   object-fit: contain;
   flex-shrink: 0;
 }
@@ -606,4 +606,23 @@ body.panel-open #side-panel { right: 0; }
 @keyframes fadeIn {
   from { opacity: 0; }
   to   { opacity: 1; }
+}
+
+#github-btn {
+  margin-left: auto;
+  color: var(--text-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--r-sm);
+  transition: background 150ms var(--ease), color 150ms var(--ease);
+  text-decoration: none;
+  flex-shrink: 0;
+}
+
+#github-btn:hover {
+  background: var(--bg);
+  color: var(--text);
 }
