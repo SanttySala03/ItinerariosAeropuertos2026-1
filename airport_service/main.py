@@ -2,6 +2,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 import sqlite3
+import os
 
 app = FastAPI(title="Airport Service", version="1.0")
 
@@ -12,7 +13,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-import os
 DB_PATH = os.path.join(os.path.dirname(__file__), "airports.db")
 
 # ── Modelo de datos ───────────────────────────────────────────────
