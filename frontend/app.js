@@ -158,9 +158,9 @@ async function createItinerary() {
 
 // ── Cargar itinerarios ────────────────────────────────────────────
 async function loadItineraries() {
-  const res          = await fetch(`${ITINERARY_API}/itineraries`);
-  const itineraries  = await res.json();
-  const container    = document.getElementById('itineraries-list');
+  const res         = await fetch(`${ITINERARY_API}/itineraries`);
+  const itineraries = await res.json();
+  const container   = document.getElementById('itineraries-list');
 
   if (itineraries.length === 0) {
     container.innerHTML = '<p class="empty-state">No tienes itinerarios guardados</p>';
