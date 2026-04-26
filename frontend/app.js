@@ -49,15 +49,12 @@ function showMap() {
   event.target.classList.add('active');
 }
 
-function openAbout() {
-  document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
-  event.target.classList.add('active');
+function openAbout(e) {
   document.getElementById('about-modal').classList.add('open');
 }
 
 function closeAbout() {
   document.getElementById('about-modal').classList.remove('open');
-  document.querySelectorAll('.nav-link')[0].classList.add('active');
 }
 
 // ── Panel ─────────────────────────────────────────────────────────
@@ -65,10 +62,12 @@ let panelOpen = false;
 
 function togglePanel() {
   panelOpen = !panelOpen;
-  document.getElementById('side-panel').classList.toggle('open', panelOpen);
-  document.getElementById('toggle-btn').textContent = panelOpen ? '✕ Cerrar panel' : '✈ Ver itinerarios';
-  if (panelOpen) loadItineraries();
-  setTimeout(() => map.invalidateSize(), 420);
+  document.body.classList.toggle('panel-open', panelOpen);
+  if (panelOpen) {
+    loadItineraries();
+    loadAirportOptions();
+  }
+  setTimeout(() => map.invalidateSize(), 380);
 }
 
 // ── Tramos ────────────────────────────────────────────────────────
