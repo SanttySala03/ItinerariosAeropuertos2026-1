@@ -31,6 +31,14 @@ const iconDefault = makeIcon('#2563EB', '#93C5FD');
 // ── Mapa ──────────────────────────────────────────────────────────
 const map = L.map('map', { zoomControl: false }).setView([4.7016, -74.1469], 6);
 
+// Geolocalización
+if (navigator.geolocation) {
+  navigator.geolocation.getCurrentPosition(
+    pos => map.setView([pos.coords.latitude, pos.coords.longitude], 12),
+    () => map.setView([4.7016, -74.1469], 4)
+  );
+}
+
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   attribution: '© OpenStreetMap'
 }).addTo(map);
