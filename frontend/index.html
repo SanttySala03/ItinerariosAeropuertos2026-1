@@ -10,6 +10,7 @@
 </head>
 <body>
 
+  <!-- Header -->
   <nav id="navbar">
     <img src="assets/logo.png" alt="Itinerary" id="logo"/>
     <div class="nav-center">
@@ -22,6 +23,7 @@
     </a>
   </nav>
 
+  <!-- Modal -->
   <div id="about-modal">
     <div class="modal-box">
       <h2>✈ Itinerary</h2>
@@ -42,18 +44,23 @@
     </div>
   </div>
 
+  <!-- Mapa -->
   <div id="map"></div>
 
+  <!-- Pestaña -->
   <div id="side-trigger" onclick="togglePanel()">
     <span id="trigger-icon">‹</span>
   </div>
 
+  <!-- Panel lateral -->
   <div id="side-panel">
     <div class="panel-header">
       <h2>Mis itinerarios</h2>
       <button id="close-panel-btn" onclick="togglePanel()">✕</button>
     </div>
     <div class="panel-content">
+
+      <!-- Formulario -->
       <p class="section-label">Nuevo itinerario</p>
       <div class="form-group">
         <label>Título del viaje</label>
@@ -64,9 +71,13 @@
         <span>+</span> Agregar tramo
       </button>
       <button class="btn-save" onclick="createItinerary()">Guardar itinerario</button>
+
       <div class="divider"></div>
+
+      <!-- Lista de itinerarios -->
       <p class="section-label">Guardados</p>
       <div id="itineraries-list"></div>
+
     </div>
   </div>
 
