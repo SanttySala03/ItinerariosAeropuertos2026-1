@@ -1,22 +1,32 @@
 const AIRPORT_API   = 'http://127.0.0.1:8001';
 const ITINERARY_API = 'http://127.0.0.1:8002';
 
-// ── Icono personalizado ───────────────────────────────────────────
-const airportIcon = L.divIcon({
-  className: '',
-  html: `<div style="
-    background:#2563eb;
-    border:2px solid #93c5fd;
-    border-radius:50% 50% 50% 0;
-    transform:rotate(-45deg);
-    width:28px;height:28px;
-    box-shadow:0 2px 8px rgba(37,99,235,0.5);
-    display:flex;align-items:center;justify-content:center;
-  "><span style="transform:rotate(45deg);font-size:13px;">✈</span></div>`,
-  iconSize: [28, 28],
-  iconAnchor: [14, 28],
-  popupAnchor: [0, -30]
-});
+// ── Variables globales ────────────────────────────────────────────
+let panelOpen   = false;
+let legCount    = 0;
+let airports    = [];
+let routeLayers = [];
+
+// ── Iconos del mapa ───────────────────────────────────────────────
+function makeIcon(color, border) {
+  return L.divIcon({
+    className: '',
+    html: `<div style="
+      background:${color};
+      border:2px solid ${border};
+      border-radius:50% 50% 50% 0;
+      transform:rotate(-45deg);
+      width:24px;height:24px;
+      box-shadow:0 2px 8px rgba(0,0,0,0.2);
+      display:flex;align-items:center;justify-content:center;
+    "><span style="transform:rotate(45deg);font-size:11px;color:white;">✈</span></div>`,
+    iconSize: [24, 24],
+    iconAnchor: [12, 24],
+    popupAnchor: [0, -28]
+  });
+}
+
+const iconDefault = makeIcon('#2563EB', '#93C5FD');
 
 // ── Mapa ──────────────────────────────────────────────────────────
 const map = L.map('map', { zoomControl: false }).setView([4.7016, -74.1469], 6);
@@ -34,41 +44,24 @@ if (navigator.geolocation) {
   );
 }
 
-// ── Variables globales ────────────────────────────────────────────
-let panelOpen  = false;
-let legCount   = 0;
-let airports   = [];
-let routeLayers = [];
-
 // ── Aeropuertos ───────────────────────────────────────────────────
 async function loadAirports() {
   try {
     const res = await fetch(`${AIRPORT_API}/airports`);
     airports = await res.json();
     airports.forEach(a => {
-      L.marker([a.latitude, a.longitude], { icon: airportIcon })
+      L.marker([a.latitude, a.longitude], { icon: iconDefault })
         .addTo(map)
         .bindPopup(`
-          <div style="font-family:'Segoe UI',sans-serif;min-width:160px;">
-            <div style="font-size:16px;font-weight:700;color:#2563eb">${a.iata_code}</div>
-            <div style="font-size:13px;font-weight:600;margin:2px 0;color:#1e293b">${a.name}</div>
-            <div style="font-size:12px;color:#64748b">${a.city}, ${a.country}</div>
+          <div style="font-family:'Segoe UI',sans-serif;min-width:150px;">
+            <div style="font-size:15px;font-weight:700;color:#2563EB;margin-bottom:2px">${a.iata_code}</div>
+            <div style="font-size:12px;font-weight:600;color:#111827;margin-bottom:2px">${a.name}</div>
+            <div style="font-size:11px;color:#6B7280">${a.city}, ${a.country}</div>
           </div>
         `);
     });
   } catch (e) {
     console.warn('No se pudo conectar con el servicio de aeropuertos');
-  }
-}
-
-async function loadAirportOptions() {
-  try {
-    if (airports.length === 0) {
-      const res = await fetch(`${AIRPORT_API}/airports`);
-      airports = await res.json();
-    }
-  } catch (e) {
-    console.warn('No se pudo cargar aeropuertos');
   }
 }
 
@@ -79,7 +72,7 @@ function airportOptions() {
 }
 
 // ── Modal ─────────────────────────────────────────────────────────
-function openAbout(e) {
+function openAbout() {
   document.getElementById('about-modal').classList.add('open');
 }
 
@@ -93,12 +86,11 @@ function togglePanel() {
   document.body.classList.toggle('panel-open', panelOpen);
   if (panelOpen) {
     loadItineraries();
-    loadAirportOptions();
   }
   setTimeout(() => map.invalidateSize(), 380);
 }
 
-// ── Tramos ────────────────────────────────────────────────────────
+// ── Formulario de tramos ──────────────────────────────────────────
 function addLegForm() {
   const id  = legCount++;
   const div = document.createElement('div');
@@ -169,6 +161,66 @@ async function createItinerary() {
   }
 }
 
+// ── Timeline ──────────────────────────────────────────────────────
+function buildTimeline(itin) {
+  if (!itin.legs || itin.legs.length === 0) return '';
+
+  const legs  = itin.legs;
+  const total = legs.length;
+  let html    = '<div class="timeline">';
+
+  legs.forEach((leg, i) => {
+    const originAirport = airports.find(a => a.iata_code === leg.origin_iata);
+    const isLast        = i === total - 1;
+    const nodeClass     = i === 0 ? 'origin' : 'stopover';
+
+    html += `
+      <div class="timeline-item" onclick="focusLeg('${leg.origin_iata}','${leg.destination_iata}')">
+        <div class="timeline-left">
+          <div class="timeline-node ${nodeClass}"></div>
+          <div class="timeline-line"></div>
+          <div class="timeline-plane">✈</div>
+          <div class="timeline-line"></div>
+          ${isLast ? `<div class="timeline-node destination"></div>` : ''}
+        </div>
+        <div class="timeline-content">
+          <div class="timeline-iata">${leg.origin_iata}</div>
+          <div class="timeline-city">${originAirport ? originAirport.city : ''}</div>
+          <div class="timeline-time">${leg.departure_datetime}</div>
+        </div>
+      </div>
+    `;
+
+    if (isLast) {
+      const destAirport = airports.find(a => a.iata_code === leg.destination_iata);
+      html += `
+        <div class="timeline-item" style="padding-bottom:0">
+          <div class="timeline-left">
+            <div class="timeline-node destination"></div>
+          </div>
+          <div class="timeline-content">
+            <div class="timeline-iata">${leg.destination_iata}</div>
+            <div class="timeline-city">${destAirport ? destAirport.city : ''}</div>
+            <div class="timeline-time">${leg.arrival_datetime}</div>
+          </div>
+        </div>
+      `;
+    }
+  });
+
+  html += '</div>';
+  return html;
+}
+
+function focusLeg(originIata, destIata) {
+  const origin = airports.find(a => a.iata_code === originIata);
+  const dest   = airports.find(a => a.iata_code === destIata);
+  if (!origin || !dest) return;
+  const midLat = (origin.latitude  + dest.latitude)  / 2;
+  const midLng = (origin.longitude + dest.longitude) / 2;
+  map.flyTo([midLat, midLng], 5, { duration: 1.2 });
+}
+
 // ── Cargar itinerarios ────────────────────────────────────────────
 async function loadItineraries() {
   try {
@@ -177,7 +229,11 @@ async function loadItineraries() {
     const container   = document.getElementById('itineraries-list');
 
     if (itineraries.length === 0) {
-      container.innerHTML = '<p class="empty-state">No tienes itinerarios guardados</p>';
+      container.innerHTML = `
+        <div class="empty-state">
+          <span class="empty-icon">✈</span>
+          <span>No tienes itinerarios guardados</span>
+        </div>`;
       clearRoutes();
       return;
     }
@@ -186,19 +242,9 @@ async function loadItineraries() {
       <div class="itinerary-card">
         <div class="itinerary-card-header">
           <span class="itinerary-title">${itin.title}</span>
-          <button class="btn-danger" onclick="deleteItinerary(${itin.id})">Eliminar</button>
+          <button class="btn-danger" onclick="deleteItinerary(event, ${itin.id})">Eliminar</button>
         </div>
-        ${itin.legs.map(leg => `
-          <div class="leg">
-            <span class="iata">${leg.origin_iata}</span>
-            <span class="arrow">→</span>
-            <span class="iata">${leg.destination_iata}</span>
-            <div class="leg-times">
-              <div>${leg.departure_datetime}</div>
-              <div>${leg.arrival_datetime}</div>
-            </div>
-          </div>
-        `).join('')}
+        ${buildTimeline(itin)}
       </div>
     `).join('');
 
@@ -209,7 +255,8 @@ async function loadItineraries() {
 }
 
 // ── Eliminar ──────────────────────────────────────────────────────
-async function deleteItinerary(id) {
+async function deleteItinerary(e, id) {
+  e.stopPropagation();
   if (!confirm('¿Eliminar este itinerario?')) return;
   await fetch(`${ITINERARY_API}/itineraries/${id}`, { method: 'DELETE' });
   loadItineraries();
@@ -225,20 +272,20 @@ function drawRoutes(itineraries) {
   clearRoutes();
   itineraries.forEach(itin => {
     itin.legs.forEach(leg => {
-      const origin      = airports.find(a => a.iata_code === leg.origin_iata);
-      const destination = airports.find(a => a.iata_code === leg.destination_iata);
-      if (!origin || !destination) return;
+      const origin = airports.find(a => a.iata_code === leg.origin_iata);
+      const dest   = airports.find(a => a.iata_code === leg.destination_iata);
+      if (!origin || !dest) return;
 
       const latlngs = createCurvedLine(
-        [origin.latitude, origin.longitude],
-        [destination.latitude, destination.longitude]
+        [origin.latitude,  origin.longitude],
+        [dest.latitude, dest.longitude]
       );
 
       const line = L.polyline(latlngs, {
-        color: '#2563eb',
+        color: '#2563EB',
         weight: 2,
-        opacity: 0.6,
-        dashArray: '6 4'
+        opacity: 0.55,
+        dashArray: '6 5'
       }).addTo(map);
 
       routeLayers.push(line);
@@ -248,18 +295,18 @@ function drawRoutes(itineraries) {
 
 function createCurvedLine(from, to) {
   const points = [];
-  const steps  = 50;
+  const steps  = 60;
   const midLat = (from[0] + to[0]) / 2 + Math.abs(to[1] - from[1]) * 0.3;
   const midLng = (from[1] + to[1]) / 2;
 
   for (let i = 0; i <= steps; i++) {
     const t  = i / steps;
     const t1 = 1 - t;
-    const lat = t1 * t1 * from[0] + 2 * t1 * t * midLat + t * t * to[0];
-    const lng = t1 * t1 * from[1] + 2 * t1 * t * midLng + t * t * to[1];
-    points.push([lat, lng]);
+    points.push([
+      t1 * t1 * from[0] + 2 * t1 * t * midLat + t * t * to[0],
+      t1 * t1 * from[1] + 2 * t1 * t * midLng + t * t * to[1]
+    ]);
   }
-
   return points;
 }
 
