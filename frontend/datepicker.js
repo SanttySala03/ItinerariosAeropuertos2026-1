@@ -12,25 +12,7 @@ class DateRangePicker {
     this.el            = null;
     this._build();
   }
-_clickDay(dateStr) {
-    const clicked = new Date(dateStr + 'T00:00:00');
-    if (this.selecting === 'start' || (this.startDate && this.endDate)) {
-      this.startDate = clicked;
-      this.endDate   = null;
-      this.selecting = 'end';
-    } else {
-      if (clicked <= this.startDate) {
-        this.startDate = clicked;
-        this.endDate   = null;
-        this.selecting = 'end';
-      } else {
-        this.endDate   = clicked;
-        this.selecting = 'start';
-      }
-    }
-    this._render();
-  }
-  
+
   _build() {
     const el = document.createElement('div');
     el.id = 'drp-overlay';
@@ -46,7 +28,7 @@ _clickDay(dateStr) {
     const DAYS   = ['Do','Lu','Ma','Mi','Ju','Vi','Sa'];
     const today  = new Date(); today.setHours(0,0,0,0);
 
-    const renderMonth = (date) => {
+    const renderMonth = (date, side) => {
       const y = date.getFullYear();
       const m = date.getMonth();
       const firstDay    = new Date(y, m, 1).getDay();
@@ -77,14 +59,16 @@ _clickDay(dateStr) {
         if (inRange)  cls += ' drp-range';
         if (inHover)  cls += ' drp-hover';
 
-        days += `<div class="${cls}" ${!isPast ? `data-date="${dateStr}" onclick="window._drp._clickDay('${dateStr}')"` : ''}>${d}</div>`;
+        days += isPast
+          ? `<div class="${cls}">${d}</div>`
+          : `<div class="${cls}" data-date="${dateStr}" onclick="window._drp._clickDay('${dateStr}')">${d}</div>`;
       }
 
       return `
         <div class="drp-month-nav">
-          <button class="drp-nav-btn" type="button" data-action="prev-${date === this.leftMonth ? 'left' : 'right'}">‹</button>
+          <button class="drp-nav-btn" type="button" onclick="window._drp._moveMonth('${side}',-1)">‹</button>
           <span class="drp-month-name">${MONTHS[m]} ${y}</span>
-          <button class="drp-nav-btn" type="button" data-action="next-${date === this.leftMonth ? 'left' : 'right'}">›</button>
+          <button class="drp-nav-btn" type="button" onclick="window._drp._moveMonth('${side}',1)">›</button>
         </div>
         <div class="drp-grid">${days}</div>
       `;
@@ -98,10 +82,10 @@ _clickDay(dateStr) {
       <div id="drp-modal">
         <div id="drp-header">
           <div id="drp-tabs">
-            <button class="drp-tab ${this.selecting === 'start' ? 'active' : ''}" type="button" data-action="tab-dep">✈ Salida</button>
-            <button class="drp-tab ${this.selecting === 'end' ? 'active' : ''}" type="button" data-action="tab-arr">🏁 Llegada</button>
+            <button class="drp-tab ${this.selecting === 'start' ? 'active' : ''}" type="button" onclick="window._drp._setTab('start')">✈ Salida</button>
+            <button class="drp-tab ${this.selecting === 'end' ? 'active' : ''}" type="button" onclick="window._drp._setTab('end')">🏁 Llegada</button>
           </div>
-          <button id="drp-close" type="button" data-action="close">✕</button>
+          <button id="drp-close" type="button" onclick="window._drp.close()">✕</button>
         </div>
 
         <div id="drp-summary">
@@ -117,85 +101,72 @@ _clickDay(dateStr) {
         </div>
 
         <div id="drp-calendars">
-          <div class="drp-month">${renderMonth(this.leftMonth)}</div>
+          <div class="drp-month">${renderMonth(this.leftMonth, 'left')}</div>
           <div class="drp-divider-v"></div>
-          <div class="drp-month">${renderMonth(this.rightMonth)}</div>
+          <div class="drp-month">${renderMonth(this.rightMonth, 'right')}</div>
         </div>
 
         <div id="drp-times">
           <div class="drp-time-block">
             <span class="drp-time-label">Hora de salida</span>
-            <input type="time" id="drp-t-dep" value="${this.departureTime}" data-action="time-dep"/>
+            <input type="time" value="${this.departureTime}" onchange="window._drp._onTime('dep', this.value)"/>
           </div>
           <div class="drp-time-block">
             <span class="drp-time-label">Hora de llegada</span>
-            <input type="time" id="drp-t-arr" value="${this.arrivalTime}" ${!this.endDate ? 'disabled' : ''} data-action="time-arr"/>
+            <input type="time" value="${this.arrivalTime}" ${!this.endDate ? 'disabled' : ''} onchange="window._drp._onTime('arr', this.value)"/>
           </div>
         </div>
 
         <div id="drp-footer">
           <span id="drp-err"></span>
-          <button class="drp-btn-sec" type="button" data-action="close">Cancelar</button>
-          <button class="drp-btn-pri" type="button" data-action="confirm">Confirmar</button>
+          <button class="drp-btn-sec" type="button" onclick="window._drp.close()">Cancelar</button>
+          <button class="drp-btn-pri" type="button" onclick="window._drp._confirm()">Confirmar</button>
         </div>
       </div>
     `;
-
-    this._bindEvents();
   }
 
-  _bindEvents() {
-    this.el.addEventListener('click', (e) => {
-      const action = e.target.closest('[data-action]')?.dataset.action;
-      const dateEl = e.target.closest('[data-date]');
+  _clickDay(dateStr) {
+    const clicked = new Date(dateStr + 'T00:00:00');
 
-      if (action === 'close')    { this.close(); return; }
-      if (action === 'confirm')  { this._confirm(); return; }
-      if (action === 'tab-dep')  { this.selecting = 'start'; this._render(); return; }
-      if (action === 'tab-arr')  { this.selecting = 'end';   this._render(); return; }
-      if (action === 'prev-left')  { this.leftMonth  = new Date(this.leftMonth.getFullYear(),  this.leftMonth.getMonth()  - 1, 1); this._render(); return; }
-      if (action === 'next-left')  { this.leftMonth  = new Date(this.leftMonth.getFullYear(),  this.leftMonth.getMonth()  + 1, 1); this._render(); return; }
-      if (action === 'prev-right') { this.rightMonth = new Date(this.rightMonth.getFullYear(), this.rightMonth.getMonth() - 1, 1); this._render(); return; }
-      if (action === 'next-right') { this.rightMonth = new Date(this.rightMonth.getFullYear(), this.rightMonth.getMonth() + 1, 1); this._render(); return; }
-
-      if (dateEl && dateEl.dataset.date) {
-        const clicked = new Date(dateEl.dataset.date + 'T00:00:00');
-        if (this.selecting === 'start' || (this.startDate && this.endDate)) {
-          this.startDate = clicked;
-          this.endDate   = null;
-          this.selecting = 'end';
-        } else {
-          if (clicked <= this.startDate) {
-            this.startDate = clicked;
-            this.endDate   = null;
-            this.selecting = 'end';
-          } else {
-            this.endDate   = clicked;
-            this.selecting = 'start';
-          }
-        }
-        this._render();
+    if (!this.startDate || (this.startDate && this.endDate)) {
+      this.startDate = clicked;
+      this.endDate   = null;
+      this.selecting = 'end';
+    } else {
+      if (clicked.getTime() === this.startDate.getTime()) {
+        this.startDate = null;
+        this.selecting = 'start';
+      } else if (clicked < this.startDate) {
+        this.startDate = clicked;
+        this.endDate   = null;
+        this.selecting = 'end';
+      } else {
+        this.endDate   = clicked;
+        this.selecting = 'start';
       }
+    }
+    this._render();
+  }
 
-      if (e.target === this.el) this.close();
-    });
+  _moveMonth(side, dir) {
+    if (side === 'left') {
+      this.leftMonth = new Date(this.leftMonth.getFullYear(), this.leftMonth.getMonth() + dir, 1);
+    } else {
+      this.rightMonth = new Date(this.rightMonth.getFullYear(), this.rightMonth.getMonth() + dir, 1);
+    }
+    this._render();
+  }
 
-    this.el.addEventListener('mouseover', (e) => {
-      const dateEl = e.target.closest('[data-date]');
-      if (dateEl && this.startDate && !this.endDate) {
-        const h = new Date(dateEl.dataset.date + 'T00:00:00');
-        if (h.getTime() !== (this.hoverDate?.getTime())) {
-          this.hoverDate = h;
-          this._render();
-        }
-      }
-    });
+  _setTab(tab) {
+    this.selecting = tab;
+    this._render();
+  }
 
-    this.el.addEventListener('change', (e) => {
-      const action = e.target.dataset.action;
-      if (action === 'time-dep') { this.departureTime = e.target.value; this._render(); }
-      if (action === 'time-arr') { this.arrivalTime   = e.target.value; this._render(); }
-    });
+  _onTime(which, val) {
+    if (which === 'dep') this.departureTime = val;
+    else                 this.arrivalTime   = val;
+    this._render();
   }
 
   _confirm() {
