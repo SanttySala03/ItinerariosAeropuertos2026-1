@@ -405,10 +405,10 @@ function drawRoutes(itineraries) {
 
       const isActive = activeItinId === itin.id;
       const line = L.polyline(latlngs, {
-        color:     isActive ? '#2563EB' : '#93C5FD',
-        weight:    isActive ? 3 : 2,
-        opacity:   isActive ? 0.9 : 0.45,
-        dashArray: isActive ? null : '6 5'
+        color:     isActive ? '#2563EB' : '#3B82F6',
+        weight:    isActive ? 4 : 3,
+        opacity:   isActive ? 1 : 0.75,
+        dashArray: isActive ? null : '8 6'
       }).addTo(map);
 
       routeLayers.push(line);
@@ -434,6 +434,7 @@ function createCurvedLine(from, to) {
 }
 
 // ── Inicializar ───────────────────────────────────────────────────
+// ── Inicializar ───────────────────────────────────────────────────
 loadAirports();
 currentPicker = new DateRangePicker((dep, arr) => {
   const depEl = document.getElementById(`departure-${currentLegId}`);
@@ -447,3 +448,36 @@ currentPicker = new DateRangePicker((dep, arr) => {
     btn.style.color = '#2563EB';
   }
 });
+initTheme();
+
+// ── Modo oscuro ───────────────────────────────────────────────────
+function toggleTheme() {
+  const isDark = document.body.classList.toggle('dark');
+  localStorage.setItem('theme', isDark ? 'dark' : 'light');
+  document.getElementById('theme-icon-dark').style.display  = isDark ? 'none' : 'block';
+  document.getElementById('theme-icon-light').style.display = isDark ? 'block' : 'none';
+
+  // Cambiar tile del mapa
+  map.eachLayer(layer => {
+    if (layer instanceof L.TileLayer) map.removeLayer(layer);
+  });
+
+  if (isDark) {
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      attribution: '© OpenStreetMap © CARTO',
+      opacity: 0.9
+    }).addTo(map);
+  } else {
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap',
+      opacity: 0.85
+    }).addTo(map);
+  }
+}
+
+// Aplicar tema guardado al cargar
+function initTheme() {
+  const saved = localStorage.getItem('theme');
+  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  if (saved === 'dark' || (!saved && prefersDark)) toggleTheme();
+}
