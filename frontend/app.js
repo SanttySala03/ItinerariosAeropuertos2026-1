@@ -2,12 +2,30 @@ const AIRPORT_API   = 'http://127.0.0.1:8001';
 const ITINERARY_API = 'http://127.0.0.1:8002';
 
 // ── Variables globales ────────────────────────────────────────────
-let panelOpen   = false;
-let legCount    = 0;
-let airports    = [];
-let routeLayers = [];
-let currentPicker = null;
-let currentLegId  = null;
+let panelOpen      = false;
+let legCount       = 0;
+let airports       = [];
+let routeLayers    = [];
+let activeRoutes   = [];
+let currentPicker  = null;
+let currentLegId   = null;
+let activeItinId   = null;
+
+// ── Toast ─────────────────────────────────────────────────────────
+function showToast(msg, type = 'success') {
+  let toast = document.getElementById('toast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'toast';
+    document.body.appendChild(toast);
+  }
+  toast.textContent = type === 'success' ? `✓ ${msg}` : `✕ ${msg}`;
+  toast.className = type;
+  requestAnimationFrame(() => {
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 3000);
+  });
+}
 
 // ── Iconos del mapa ───────────────────────────────────────────────
 function makeIcon(color, border) {
@@ -29,12 +47,14 @@ function makeIcon(color, border) {
 }
 
 const iconDefault = makeIcon('#2563EB', '#93C5FD');
+const iconActive  = makeIcon('#059669', '#6EE7B7');
 
 // ── Mapa ──────────────────────────────────────────────────────────
 const map = L.map('map', { zoomControl: false }).setView([4.7016, -74.1469], 6);
 
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  attribution: '© OpenStreetMap'
+  attribution: '© OpenStreetMap',
+  opacity: 0.85
 }).addTo(map);
 
 L.control.zoom({ position: 'bottomleft' }).addTo(map);
@@ -100,7 +120,11 @@ function openDatePicker(legId) {
       if (depEl) depEl.value = dep;
       if (arrEl) arrEl.value = arr;
       const btn = document.getElementById(`date-btn-${currentLegId}`);
-      if (btn) btn.textContent = `${dep} → ${arr}`;
+      if (btn) {
+        btn.textContent = `📅 ${dep} → ${arr}`;
+        btn.style.borderColor = '#2563EB';
+        btn.style.color = '#2563EB';
+      }
     });
   }
   currentPicker.startDate  = null;
@@ -118,6 +142,8 @@ function addLegForm() {
   const div = document.createElement('div');
   div.id        = `leg-${id}`;
   div.className = 'leg-form';
+  div.style.opacity = '0';
+  div.style.transform = 'translateY(8px)';
   div.innerHTML = `
     <div class="leg-form-header">
       <span class="leg-form-title">Tramo ${id + 1}</span>
@@ -138,6 +164,11 @@ function addLegForm() {
     </button>
   `;
   document.getElementById('legs-container').appendChild(div);
+  requestAnimationFrame(() => {
+    div.style.transition = 'opacity 0.25s ease, transform 0.25s ease';
+    div.style.opacity = '1';
+    div.style.transform = 'translateY(0)';
+  });
 }
 
 function removeLeg(id) {
@@ -147,7 +178,7 @@ function removeLeg(id) {
 // ── Crear itinerario ──────────────────────────────────────────────
 async function createItinerary() {
   const title = document.getElementById('itin-title').value.trim();
-  if (!title) return alert('Escribe un título para el itinerario');
+  if (!title) return showToast('Escribe un título para el itinerario', 'error');
 
   const legs = [];
   for (let i = 0; i < legCount; i++) {
@@ -156,7 +187,7 @@ async function createItinerary() {
     const dep = document.getElementById(`departure-${i}`).value;
     const arr = document.getElementById(`arrival-${i}`).value;
     if (!dep || !arr) {
-      alert(`Selecciona las fechas del tramo ${i + 1}`);
+      showToast(`Selecciona las fechas del tramo ${i + 1}`, 'error');
       return;
     }
     legs.push({
@@ -167,23 +198,51 @@ async function createItinerary() {
     });
   }
 
-  if (legs.length === 0) return alert('Agrega al menos un tramo');
+  if (legs.length === 0) return showToast('Agrega al menos un tramo', 'error');
 
-  const res = await fetch(`${ITINERARY_API}/itineraries`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ title, legs })
-  });
+  try {
+    const res = await fetch(`${ITINERARY_API}/itineraries`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title, legs })
+    });
 
-  if (res.ok) {
-    document.getElementById('itin-title').value = '';
-    document.getElementById('legs-container').innerHTML = '';
-    legCount = 0;
-    loadItineraries();
-  } else {
-    const err = await res.json();
-    alert('Error: ' + err.detail);
+    if (res.ok) {
+      document.getElementById('itin-title').value = '';
+      document.getElementById('legs-container').innerHTML = '';
+      legCount = 0;
+      showToast('Itinerario guardado correctamente');
+      loadItineraries();
+    } else {
+      const err = await res.json();
+      showToast(err.detail || 'Error al guardar', 'error');
+    }
+  } catch (e) {
+    showToast('No se pudo conectar con el servidor', 'error');
   }
+}
+
+// ── Duración entre fechas ─────────────────────────────────────────
+function calcDuration(dep, arr) {
+  const d1 = new Date(dep.replace(' ', 'T'));
+  const d2 = new Date(arr.replace(' ', 'T'));
+  const diffMs = d2 - d1;
+  if (isNaN(diffMs) || diffMs < 0) return '';
+  const hours = Math.floor(diffMs / 3600000);
+  const mins  = Math.floor((diffMs % 3600000) / 60000);
+  if (hours >= 24) {
+    const days = Math.floor(hours / 24);
+    return `${days}d ${hours % 24}h`;
+  }
+  return hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
+}
+
+function calcTotalDays(legs) {
+  if (!legs || legs.length === 0) return '';
+  const first = new Date(legs[0].departure_datetime.replace(' ', 'T'));
+  const last  = new Date(legs[legs.length - 1].arrival_datetime.replace(' ', 'T'));
+  const days  = Math.round((last - first) / 86400000);
+  return days > 0 ? `${days} día${days > 1 ? 's' : ''}` : '';
 }
 
 // ── Timeline ──────────────────────────────────────────────────────
@@ -198,9 +257,10 @@ function buildTimeline(itin) {
     const originAirport = airports.find(a => a.iata_code === leg.origin_iata);
     const isLast        = i === total - 1;
     const nodeClass     = i === 0 ? 'origin' : 'stopover';
+    const duration      = calcDuration(leg.departure_datetime, leg.arrival_datetime);
 
     html += `
-      <div class="timeline-item" onclick="focusLeg('${leg.origin_iata}','${leg.destination_iata}')">
+      <div class="timeline-item" onclick="focusLeg('${leg.origin_iata}','${leg.destination_iata}', ${itin.id})">
         <div class="timeline-left">
           <div class="timeline-node ${nodeClass}"></div>
           <div class="timeline-line"></div>
@@ -209,7 +269,12 @@ function buildTimeline(itin) {
           ${isLast ? `<div class="timeline-node destination"></div>` : ''}
         </div>
         <div class="timeline-content">
-          <div class="timeline-iata">${leg.origin_iata}</div>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <div class="timeline-iata">${leg.origin_iata}</div>
+            <span style="color:#9CA3AF;font-size:10px;">→</span>
+            <div class="timeline-iata">${leg.destination_iata}</div>
+            ${duration ? `<span class="leg-duration">⏱ ${duration}</span>` : ''}
+          </div>
           <div class="timeline-city">${originAirport ? originAirport.city : ''}</div>
           <div class="timeline-time">${leg.departure_datetime}</div>
         </div>
@@ -237,13 +302,23 @@ function buildTimeline(itin) {
   return html;
 }
 
-function focusLeg(originIata, destIata) {
+// ── Foco en tramo ─────────────────────────────────────────────────
+function focusLeg(originIata, destIata, itinId) {
   const origin = airports.find(a => a.iata_code === originIata);
   const dest   = airports.find(a => a.iata_code === destIata);
   if (!origin || !dest) return;
   const midLat = (origin.latitude  + dest.latitude)  / 2;
   const midLng = (origin.longitude + dest.longitude) / 2;
   map.flyTo([midLat, midLng], 5, { duration: 1.2 });
+  setActiveItinerary(itinId);
+}
+
+// ── Itinerario activo ─────────────────────────────────────────────
+function setActiveItinerary(id) {
+  activeItinId = id;
+  document.querySelectorAll('.itinerary-card').forEach(card => {
+    card.classList.toggle('active', card.dataset.id === String(id));
+  });
 }
 
 // ── Cargar itinerarios ────────────────────────────────────────────
@@ -258,20 +333,31 @@ async function loadItineraries() {
         <div class="empty-state">
           <span class="empty-icon">✈</span>
           <span>No tienes itinerarios guardados</span>
+          <span style="font-size:11px;color:#9CA3AF;">Crea tu primer itinerario arriba</span>
         </div>`;
       clearRoutes();
       return;
     }
 
-    container.innerHTML = itineraries.map(itin => `
-      <div class="itinerary-card">
-        <div class="itinerary-card-header">
-          <span class="itinerary-title">${itin.title}</span>
-          <button class="btn-danger" onclick="deleteItinerary(event, ${itin.id})">Eliminar</button>
+    container.innerHTML = itineraries.map(itin => {
+      const totalDays = calcTotalDays(itin.legs);
+      const route = itin.legs.map(l => l.origin_iata).join(' → ') +
+                    (itin.legs.length ? ` → ${itin.legs[itin.legs.length-1].destination_iata}` : '');
+      return `
+        <div class="itinerary-card ${activeItinId === itin.id ? 'active' : ''}"
+             data-id="${itin.id}"
+             onclick="setActiveItinerary(${itin.id})">
+          <div class="itinerary-card-header">
+            <div>
+              <div class="itinerary-title">${itin.title}</div>
+              <div class="itinerary-summary">${route}${totalDays ? ` · ${totalDays}` : ''}</div>
+            </div>
+            <button class="btn-danger" onclick="deleteItinerary(event, ${itin.id})">Eliminar</button>
+          </div>
+          ${buildTimeline(itin)}
         </div>
-        ${buildTimeline(itin)}
-      </div>
-    `).join('');
+      `;
+    }).join('');
 
     drawRoutes(itineraries);
   } catch (e) {
@@ -283,7 +369,18 @@ async function loadItineraries() {
 async function deleteItinerary(e, id) {
   e.stopPropagation();
   if (!confirm('¿Eliminar este itinerario?')) return;
+
+  const card = document.querySelector(`.itinerary-card[data-id="${id}"]`);
+  if (card) {
+    card.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+    card.style.opacity = '0';
+    card.style.transform = 'translateX(20px)';
+    await new Promise(r => setTimeout(r, 300));
+  }
+
   await fetch(`${ITINERARY_API}/itineraries/${id}`, { method: 'DELETE' });
+  showToast('Itinerario eliminado');
+  if (activeItinId === id) activeItinId = null;
   loadItineraries();
 }
 
@@ -306,11 +403,12 @@ function drawRoutes(itineraries) {
         [dest.latitude, dest.longitude]
       );
 
+      const isActive = activeItinId === itin.id;
       const line = L.polyline(latlngs, {
-        color: '#2563EB',
-        weight: 2,
-        opacity: 0.55,
-        dashArray: '6 5'
+        color:     isActive ? '#2563EB' : '#93C5FD',
+        weight:    isActive ? 3 : 2,
+        opacity:   isActive ? 0.9 : 0.45,
+        dashArray: isActive ? null : '6 5'
       }).addTo(map);
 
       routeLayers.push(line);
@@ -343,5 +441,9 @@ currentPicker = new DateRangePicker((dep, arr) => {
   if (depEl) depEl.value = dep;
   if (arrEl) arrEl.value = arr;
   const btn = document.getElementById(`date-btn-${currentLegId}`);
-  if (btn) btn.textContent = `📅 ${dep} → ${arr}`;
+  if (btn) {
+    btn.textContent = `📅 ${dep} → ${arr}`;
+    btn.style.borderColor = '#2563EB';
+    btn.style.color = '#2563EB';
+  }
 });

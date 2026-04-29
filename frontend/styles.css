@@ -979,3 +979,74 @@ body.panel-open #side-panel { right: 0; }
 }
 
 .drp-btn-pri:active { transform: translateY(0); }
+
+/* ── Toast ── */
+#toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%) translateY(80px);
+  z-index: 4000;
+  background: #111827;
+  color: white;
+  padding: 12px 20px;
+  border-radius: var(--r-md);
+  font-size: 13px;
+  font-weight: 500;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+  transition: transform 0.3s var(--ease), opacity 0.3s var(--ease);
+  opacity: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  pointer-events: none;
+}
+
+#toast.show {
+  transform: translateX(-50%) translateY(0);
+  opacity: 1;
+}
+
+#toast.success { background: #059669; }
+#toast.error   { background: #DC2626; }
+
+/* ── Itinerario activo ── */
+.itinerary-card.active {
+  border-color: var(--blue);
+  background: var(--blue-50);
+}
+
+.itinerary-card.active .itinerary-title {
+  color: var(--blue);
+}
+
+/* ── Tramo activo ── */
+.timeline-item.active .timeline-iata {
+  color: var(--blue);
+  font-weight: 800;
+}
+
+.timeline-item.active .timeline-content {
+  background: var(--blue-50);
+  border-radius: var(--r-sm);
+  padding: 4px 8px;
+  margin-left: -8px;
+}
+
+/* ── Duración ── */
+.itinerary-summary {
+  font-size: 11px;
+  color: var(--text-3);
+  margin-top: 4px;
+  font-weight: 500;
+}
+
+.leg-duration {
+  font-size: 10px;
+  color: var(--text-3);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  text-align: right;
+}
