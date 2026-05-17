@@ -1,5 +1,6 @@
 fastapi
 uvicorn[standard]
 pydantic
-pydantic
+pytest
 httpx
+pytest-cov
