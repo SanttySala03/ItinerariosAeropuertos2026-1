@@ -32,6 +32,7 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* ── Mapa ── */
 #map {
   position: fixed;
   inset: 0;
@@ -979,3 +980,183 @@ body.panel-open #side-panel { right: 0; }
 }
 
 .drp-btn-pri:active { transform: translateY(0); }
+
+/* ── Toast ── */
+#toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%) translateY(80px);
+  z-index: 4000;
+  background: #111827;
+  color: white;
+  padding: 12px 20px;
+  border-radius: var(--r-md);
+  font-size: 13px;
+  font-weight: 500;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+  transition: transform 0.3s var(--ease), opacity 0.3s var(--ease);
+  opacity: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  pointer-events: none;
+}
+
+#toast.show {
+  transform: translateX(-50%) translateY(0);
+  opacity: 1;
+}
+
+#toast.success { background: #059669; }
+#toast.error   { background: #DC2626; }
+
+/* ── Itinerario activo ── */
+.itinerary-card.active {
+  border-color: var(--blue);
+  background: var(--blue-50);
+}
+
+.itinerary-card.active .itinerary-title {
+  color: var(--blue);
+}
+
+/* ── Tramo activo ── */
+.timeline-item.active .timeline-iata {
+  color: var(--blue);
+  font-weight: 800;
+}
+
+.timeline-item.active .timeline-content {
+  background: var(--blue-50);
+  border-radius: var(--r-sm);
+  padding: 4px 8px;
+  margin-left: -8px;
+}
+
+/* ── Duración ── */
+.itinerary-summary {
+  font-size: 11px;
+  color: var(--text-3);
+  margin-top: 4px;
+  font-weight: 500;
+}
+
+.leg-duration {
+  font-size: 10px;
+  color: var(--text-3);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  text-align: right;
+}
+
+#theme-btn {
+  background: none;
+  border: none;
+  color: var(--text-2);
+  cursor: pointer;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--r-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 150ms, color 150ms;
+  flex-shrink: 0;
+}
+
+#theme-btn:hover {
+  background: var(--bg);
+  color: var(--text);
+}
+
+/* ── Modo oscuro ── */
+body.dark {
+  --blue:       #3B82F6;
+  --blue-hover: #2563EB;
+  --blue-light: #1E3A5F;
+  --blue-50:    #172554;
+  --bg:         #0F172A;
+  --surface:    #1E293B;
+  --border:     #334155;
+  --text:       #F1F5F9;
+  --text-2:     #94A3B8;
+  --text-3:     #475569;
+  --shadow-sm:  0 2px 8px rgba(0,0,0,0.3);
+  --shadow-md:  0 6px 16px rgba(0,0,0,0.4);
+  --shadow-lg:  0 12px 32px rgba(0,0,0,0.5);
+}
+
+body.dark #navbar {
+  background: rgba(15,23,42,0.85);
+  border-bottom-color: rgba(255,255,255,0.06);
+}
+
+body.dark #logo {
+  filter: brightness(0) invert(1);
+}
+
+body.dark .leaflet-control-zoom a {
+  background: #1E293B !important;
+  color: #94A3B8 !important;
+  border-bottom-color: #334155 !important;
+}
+
+body.dark .leaflet-control-zoom a:hover {
+  background: #334155 !important;
+  color: white !important;
+}
+
+body.dark #drp-modal,
+body.dark #drp-header,
+body.dark #drp-calendars,
+body.dark #drp-footer {
+  background: #1E293B;
+  border-color: #334155;
+}
+
+body.dark #drp-summary,
+body.dark #drp-times {
+  background: #0F172A;
+  border-color: #334155;
+}
+
+body.dark .drp-summary-item {
+  background: #1E293B;
+  border-color: #334155;
+}
+
+body.dark .drp-d { color: #F1F5F9; }
+body.dark .drp-past { color: #475569; }
+body.dark .drp-today { color: #3B82F6; }
+body.dark .drp-active:hover { background: #172554; color: #3B82F6; }
+
+body.dark .drp-time-block input[type="time"] {
+  background: #0F172A;
+  border-color: #334155;
+  color: #F1F5F9;
+}
+
+body.dark .drp-time-block input[type="time"]:disabled {
+  background: #0F172A;
+  color: #475569;
+}
+
+body.dark .modal-box {
+  background: #1E293B;
+  border-color: #334155;
+  color: #F1F5F9;
+}
+
+body.dark .modal-box p,
+body.dark .modal-box .subtitle,
+body.dark .modal-box .author {
+  color: #94A3B8;
+}
+
+body.dark .pill {
+  background: #172554;
+  border-color: #1E3A5F;
+}
