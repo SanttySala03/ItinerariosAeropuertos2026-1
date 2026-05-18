@@ -1,99 +1,72 @@
-﻿name: CI/CD Pipeline â€” Itinerary App
+name: CI/CD Pipeline - Itinerary App
 
 on:
   push:
-    branches: [ main, develop, feature/** ]
+    branches: [ main, develop, 'feature/**' ]
   pull_request:
     branches: [ main, develop ]
 
 jobs:
 
-  # â”€â”€ Pruebas del Microservicio de Aeropuertos â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   test-airport-service:
-    name: Test â€” Airport Service
+    name: Test Airport Service
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout cÃ³digo
-        uses: actions/checkout@v4
-
-      - name: Configurar Python 3.9
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.9'
-
       - name: Instalar dependencias
         working-directory: ./airport_service
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-
-      - name: Ejecutar pruebas con cobertura
+      - name: Ejecutar pruebas
         working-directory: ./airport_service
-        run: |
-          pytest tests/ -v --cov=. --cov-report=term-missing --cov-report=xml
-
-      - name: Subir reporte de cobertura
-        uses: actions/upload-artifact@v4
+        run: pytest tests/ -v --cov=. --cov-report=term-missing --cov-report=xml
+      - uses: actions/upload-artifact@v4
         with:
           name: coverage-airport-service
           path: airport_service/coverage.xml
 
-  # â”€â”€ Pruebas del Microservicio de Itinerarios â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   test-itinerary-service:
-    name: Test â€” Itinerary Service
+    name: Test Itinerary Service
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout cÃ³digo
-        uses: actions/checkout@v4
-
-      - name: Configurar Python 3.9
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.9'
-
       - name: Instalar dependencias
         working-directory: ./itinerary_service
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-
-      - name: Ejecutar pruebas con cobertura
+      - name: Ejecutar pruebas
         working-directory: ./itinerary_service
-        run: |
-          pytest tests/ -v --cov=. --cov-report=term-missing --cov-report=xml
-
-      - name: Subir reporte de cobertura
-        uses: actions/upload-artifact@v4
+        run: pytest tests/ -v --cov=. --cov-report=term-missing --cov-report=xml
+      - uses: actions/upload-artifact@v4
         with:
           name: coverage-itinerary-service
           path: itinerary_service/coverage.xml
 
-  # â”€â”€ Build y publicar imÃ¡genes Docker en GHCR â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   build-docker:
-    name: Build â€” Docker Images
+    name: Build Docker Images
     runs-on: ubuntu-latest
     needs: [test-airport-service, test-itinerary-service]
     permissions:
       contents: read
       packages: write
-
     steps:
-      - name: Checkout cÃ³digo
-        uses: actions/checkout@v4
-
-      - name: Configurar Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Login a GitHub Container Registry
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Login a GHCR
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build y publicar Airport Service
+      - name: Build Airport Service
         uses: docker/build-push-action@v5
         with:
           context: ./airport_service
@@ -101,8 +74,7 @@ jobs:
           tags: |
             ghcr.io/santysala03/itinerary-airport-service:latest
             ghcr.io/santysala03/itinerary-airport-service:${{ github.sha }}
-
-      - name: Build y publicar Itinerary Service
+      - name: Build Itinerary Service
         uses: docker/build-push-action@v5
         with:
           context: ./itinerary_service
@@ -110,57 +82,34 @@ jobs:
           tags: |
             ghcr.io/santysala03/itinerary-itinerary-service:latest
             ghcr.io/santysala03/itinerary-itinerary-service:${{ github.sha }}
-
-      - name: Resumen de imÃ¡genes publicadas
+      - name: Resumen
         run: |
-          echo "âœ… Airport Service â†’ ghcr.io/santysala03/itinerary-airport-service:latest"
-          echo "âœ… Itinerary Service â†’ ghcr.io/santysala03/itinerary-itinerary-service:latest"
+          echo Airport Service OK
+          echo Itinerary Service OK
 
-  # â”€â”€ ValidaciÃ³n del Frontend â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   validate-frontend:
-    name: Validate â€” Frontend
+    name: Validate Frontend
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout cÃ³digo
-        uses: actions/checkout@v4
-
-      - name: Verificar archivos del frontend
+      - uses: actions/checkout@v4
+      - name: Verificar archivos
         run: |
-          echo "Verificando estructura del frontend..."
-          test -f frontend/index.html && echo "âœ… index.html encontrado"
-          test -f frontend/app.js && echo "âœ… app.js encontrado"
-          test -f frontend/styles.css && echo "âœ… styles.css encontrado"
-          test -f frontend/datepicker.js && echo "âœ… datepicker.js encontrado"
+          test -f frontend/index.html && echo index.html OK
+          test -f frontend/app.js && echo app.js OK
+          test -f frontend/styles.css && echo styles.css OK
+          test -f frontend/datepicker.js && echo datepicker.js OK
+      - name: Verificar HTML
+        run: grep -q '<!DOCTYPE html>' frontend/index.html && echo DOCTYPE OK || exit 1
 
-      - name: Verificar sintaxis HTML bÃ¡sica
-        run: |
-          if grep -q "<!DOCTYPE html>" frontend/index.html; then
-            echo "âœ… DOCTYPE HTML vÃ¡lido"
-          else
-            echo "âŒ DOCTYPE HTML no encontrado"
-            exit 1
-          fi
-
-  # â”€â”€ Resumen del Pipeline â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   pipeline-summary:
     name: Pipeline Summary
     runs-on: ubuntu-latest
     needs: [test-airport-service, test-itinerary-service, build-docker, validate-frontend]
     if: always()
-
     steps:
-      - name: Resumen del pipeline
+      - name: Resumen
         run: |
-          echo "â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•"
-          echo "  CI/CD Pipeline â€” Itinerary App"
-          echo "â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•"
-          echo "  Branch: ${{ github.ref_name }}"
-          echo "  Commit: ${{ github.sha }}"
-          echo "  Autor:  ${{ github.actor }}"
-          echo "â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•"
-          echo "  âœ… Tests Airport Service"
-          echo "  âœ… Tests Itinerary Service"
-          echo "  âœ… Docker Build"
-          echo "  âœ… Frontend Validation"
-          echo "â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•"
+          echo CI/CD Pipeline - Itinerary App
+          echo Branch ${{ github.ref_name }}
+          echo Commit ${{ github.sha }}
+          echo Autor ${{ github.actor }}
