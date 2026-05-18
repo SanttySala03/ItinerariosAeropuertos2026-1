@@ -26,7 +26,7 @@ def test_list_itineraries_returns_200():
     assert response.status_code == 200
     assert isinstance(response.json(), list)
 
-@patch("main.validate_airport_iata")
+@patch("main.validate_iata")
 def test_create_itinerary_success(mock_validate):
     """POST /itineraries debe crear itinerario con IATA válidos"""
     mock_validate.side_effect = mock_airport_valid
@@ -66,7 +66,7 @@ def test_create_itinerary_invalid_iata(mock_validate):
     response = client.post("/itineraries", json=payload)
     assert response.status_code == 400
 
-@patch("main.validate_airport_iata")
+@patch("main.validate_iata")
 def test_create_itinerary_multiple_legs(mock_validate):
     """POST /itineraries debe soportar múltiples tramos"""
     mock_validate.side_effect = mock_airport_valid
@@ -105,7 +105,7 @@ def test_create_itinerary_empty_title():
     response = client.post("/itineraries", json=payload)
     assert response.status_code in [400, 422]
 
-@patch("main.validate_airport_iata")
+@patch("main.validate_iata")
 def test_delete_itinerary(mock_validate):
     """DELETE /itineraries/{id} debe retornar 204"""
     mock_validate.side_effect = mock_airport_valid
