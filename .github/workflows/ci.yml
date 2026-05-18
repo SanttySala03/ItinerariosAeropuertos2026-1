@@ -1,4 +1,4 @@
-name: CI/CD Pipeline — Itinerary App
+﻿name: CI/CD Pipeline â€” Itinerary App
 
 on:
   push:
@@ -8,13 +8,13 @@ on:
 
 jobs:
 
-  # ── Pruebas del Microservicio de Aeropuertos ──────────────────────────────
+  # â”€â”€ Pruebas del Microservicio de Aeropuertos â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   test-airport-service:
-    name: Test — Airport Service
+    name: Test â€” Airport Service
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout código
+      - name: Checkout cÃ³digo
         uses: actions/checkout@v4
 
       - name: Configurar Python 3.9
@@ -39,13 +39,13 @@ jobs:
           name: coverage-airport-service
           path: airport_service/coverage.xml
 
-  # ── Pruebas del Microservicio de Itinerarios ──────────────────────────────
+  # â”€â”€ Pruebas del Microservicio de Itinerarios â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   test-itinerary-service:
-    name: Test — Itinerary Service
+    name: Test â€” Itinerary Service
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout código
+      - name: Checkout cÃ³digo
         uses: actions/checkout@v4
 
       - name: Configurar Python 3.9
@@ -70,9 +70,9 @@ jobs:
           name: coverage-itinerary-service
           path: itinerary_service/coverage.xml
 
-  # ── Build y publicar imágenes Docker en GHCR ─────────────────────────────
+  # â”€â”€ Build y publicar imÃ¡genes Docker en GHCR â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   build-docker:
-    name: Build — Docker Images
+    name: Build â€” Docker Images
     runs-on: ubuntu-latest
     needs: [test-airport-service, test-itinerary-service]
     permissions:
@@ -80,7 +80,7 @@ jobs:
       packages: write
 
     steps:
-      - name: Checkout código
+      - name: Checkout cÃ³digo
         uses: actions/checkout@v4
 
       - name: Configurar Docker Buildx
@@ -99,8 +99,8 @@ jobs:
           context: ./airport_service
           push: ${{ github.ref == 'refs/heads/main' }}
           tags: |
-            ghcr.io/${{ github.repository_owner }}/itinerary-airport-service:latest
-            ghcr.io/${{ github.repository_owner }}/itinerary-airport-service:${{ github.sha }}
+            ghcr.io/santysala03/itinerary-airport-service:latest
+            ghcr.io/santysala03/itinerary-airport-service:${{ github.sha }}
 
       - name: Build y publicar Itinerary Service
         uses: docker/build-push-action@v5
@@ -108,41 +108,41 @@ jobs:
           context: ./itinerary_service
           push: ${{ github.ref == 'refs/heads/main' }}
           tags: |
-            ghcr.io/${{ github.repository_owner }}/itinerary-itinerary-service:latest
-            ghcr.io/${{ github.repository_owner }}/itinerary-itinerary-service:${{ github.sha }}
+            ghcr.io/santysala03/itinerary-itinerary-service:latest
+            ghcr.io/santysala03/itinerary-itinerary-service:${{ github.sha }}
 
-      - name: Resumen de imágenes publicadas
+      - name: Resumen de imÃ¡genes publicadas
         run: |
-          echo "✅ Airport Service → ghcr.io/${{ github.repository_owner }}/itinerary-airport-service:latest"
-          echo "✅ Itinerary Service → ghcr.io/${{ github.repository_owner }}/itinerary-itinerary-service:latest"
+          echo "âœ… Airport Service â†’ ghcr.io/santysala03/itinerary-airport-service:latest"
+          echo "âœ… Itinerary Service â†’ ghcr.io/santysala03/itinerary-itinerary-service:latest"
 
-  # ── Validación del Frontend ───────────────────────────────────────────────
+  # â”€â”€ ValidaciÃ³n del Frontend â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   validate-frontend:
-    name: Validate — Frontend
+    name: Validate â€” Frontend
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout código
+      - name: Checkout cÃ³digo
         uses: actions/checkout@v4
 
       - name: Verificar archivos del frontend
         run: |
           echo "Verificando estructura del frontend..."
-          test -f frontend/index.html && echo "✅ index.html encontrado"
-          test -f frontend/app.js && echo "✅ app.js encontrado"
-          test -f frontend/styles.css && echo "✅ styles.css encontrado"
-          test -f frontend/datepicker.js && echo "✅ datepicker.js encontrado"
+          test -f frontend/index.html && echo "âœ… index.html encontrado"
+          test -f frontend/app.js && echo "âœ… app.js encontrado"
+          test -f frontend/styles.css && echo "âœ… styles.css encontrado"
+          test -f frontend/datepicker.js && echo "âœ… datepicker.js encontrado"
 
-      - name: Verificar sintaxis HTML básica
+      - name: Verificar sintaxis HTML bÃ¡sica
         run: |
           if grep -q "<!DOCTYPE html>" frontend/index.html; then
-            echo "✅ DOCTYPE HTML válido"
+            echo "âœ… DOCTYPE HTML vÃ¡lido"
           else
-            echo "❌ DOCTYPE HTML no encontrado"
+            echo "âŒ DOCTYPE HTML no encontrado"
             exit 1
           fi
 
-  # ── Resumen del Pipeline ──────────────────────────────────────────────────
+  # â”€â”€ Resumen del Pipeline â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   pipeline-summary:
     name: Pipeline Summary
     runs-on: ubuntu-latest
@@ -152,15 +152,15 @@ jobs:
     steps:
       - name: Resumen del pipeline
         run: |
-          echo "════════════════════════════════════════"
-          echo "  CI/CD Pipeline — Itinerary App"
-          echo "════════════════════════════════════════"
+          echo "â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•"
+          echo "  CI/CD Pipeline â€” Itinerary App"
+          echo "â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•"
           echo "  Branch: ${{ github.ref_name }}"
           echo "  Commit: ${{ github.sha }}"
           echo "  Autor:  ${{ github.actor }}"
-          echo "════════════════════════════════════════"
-          echo "  ✅ Tests Airport Service"
-          echo "  ✅ Tests Itinerary Service"
-          echo "  ✅ Docker Build"
-          echo "  ✅ Frontend Validation"
-          echo "════════════════════════════════════════"
+          echo "â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•"
+          echo "  âœ… Tests Airport Service"
+          echo "  âœ… Tests Itinerary Service"
+          echo "  âœ… Docker Build"
+          echo "  âœ… Frontend Validation"
+          echo "â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•"
