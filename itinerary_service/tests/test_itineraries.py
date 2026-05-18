@@ -49,8 +49,9 @@ def test_create_itinerary_success(mock_validate):
 
 @patch("main.validate_iata")
 def test_create_itinerary_invalid_iata(mock_validate):
-    """POST /itineraries con IATA inválido debe retornar 400"""
-    mock_validate.side_effect = Exception("IATA inválido")
+    """POST /itineraries con IATA inválido debe retornar error"""
+    from fastapi import HTTPException
+    mock_validate.side_effect = HTTPException(status_code=400, detail="IATA inválido")
     payload = {
         "title": "Viaje inválido",
         "legs": [
@@ -63,7 +64,7 @@ def test_create_itinerary_invalid_iata(mock_validate):
         ]
     }
     response = client.post("/itineraries", json=payload)
-    assert response.status_code in [400, 500, 503]
+    assert response.status_code == 400
 
 @patch("main.validate_iata")
 def test_create_itinerary_multiple_legs(mock_validate):
