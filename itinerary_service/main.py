@@ -4,7 +4,38 @@ from pydantic import BaseModel, Field
 import sqlite3
 import os
 
-app = FastAPI(title="Itinerary Service", version="1.0")
+app = FastAPI(
+    title="Itinerary — Itinerary Service",
+    version="1.0.0",
+    description="""
+## Microservicio de Itinerarios
+
+Gestiona los itinerarios de viaje y sus tramos en el sistema Itinerary.
+
+### Funcionalidades
+- Consultar todos los itinerarios con sus tramos
+- Crear itinerarios con múltiples tramos y escalas
+- Actualizar itinerarios existentes
+- Eliminar itinerarios y sus tramos en cascada
+
+### Validación
+Antes de guardar un itinerario, este servicio **valida los códigos IATA**
+consultando el Microservicio de Aeropuertos en el puerto 8001.
+    """,
+    contact={
+        "name": "David Santiago Carrillo Salamanca",
+        "url": "https://github.com/SanttySala03/ItinerariosAeropuertos2026-1",
+    },
+    license_info={
+        "name": "Universidad Central — Ingeniería de Software II — 2026",
+    },
+    openapi_tags=[
+        {
+            "name": "itineraries",
+            "description": "Operaciones CRUD sobre itinerarios de viaje con soporte para múltiples tramos",
+        }
+    ]
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -18,17 +49,17 @@ AIRPORT_SERVICE_URL = "http://127.0.0.1:8001"
 
 # ── Modelos de datos ──────────────────────────────────────────────
 class LegCreate(BaseModel):
-    origin_iata: str = Field(..., min_length=3, max_length=3)
-    destination_iata: str = Field(..., min_length=3, max_length=3)
-    departure_datetime: str = Field(..., description="Formato: YYYY-MM-DD HH:MM")
-    arrival_datetime: str = Field(..., description="Formato: YYYY-MM-DD HH:MM")
+    origin_iata: str = Field(..., min_length=3, max_length=3, example="BOG")
+    destination_iata: str = Field(..., min_length=3, max_length=3, example="MAD")
+    departure_datetime: str = Field(..., description="Formato: YYYY-MM-DD HH:MM", example="2026-06-01 10:00")
+    arrival_datetime: str = Field(..., description="Formato: YYYY-MM-DD HH:MM", example="2026-06-02 08:00")
 
 class Leg(LegCreate):
     id: int
     itinerary_id: int
 
 class ItineraryCreate(BaseModel):
-    title: str = Field(..., min_length=3, max_length=100)
+    title: str = Field(..., min_length=3, max_length=100, example="Vacaciones en Europa")
     legs: list[LegCreate] = Field(..., min_length=1)
 
 class Itinerary(BaseModel):
@@ -88,7 +119,13 @@ def validate_iata(iata_code: str):
         )
 
 # ── Endpoints ─────────────────────────────────────────────────────
-@app.get("/itineraries", response_model=list[Itinerary])
+@app.get(
+    "/itineraries",
+    response_model=list[Itinerary],
+    tags=["itineraries"],
+    summary="Listar itinerarios",
+    description="Retorna todos los itinerarios registrados con sus tramos anidados."
+)
 def list_itineraries():
     conn = get_db()
     itineraries = conn.execute("SELECT * FROM itineraries").fetchall()
@@ -101,7 +138,14 @@ def list_itineraries():
     conn.close()
     return result
 
-@app.get("/itineraries/{itinerary_id}", response_model=Itinerary)
+
+@app.get(
+    "/itineraries/{itinerary_id}",
+    response_model=Itinerary,
+    tags=["itineraries"],
+    summary="Obtener itinerario",
+    description="Obtiene un itinerario específico con todos sus tramos. Retorna 404 si no existe."
+)
 def get_itinerary(itinerary_id: int):
     conn = get_db()
     itin = conn.execute("SELECT * FROM itineraries WHERE id = ?", (itinerary_id,)).fetchone()
@@ -113,7 +157,21 @@ def get_itinerary(itinerary_id: int):
     conn.close()
     return {"id": itin["id"], "title": itin["title"], "legs": [dict(l) for l in legs]}
 
-@app.post("/itineraries", response_model=Itinerary, status_code=201)
+
+@app.post(
+    "/itineraries",
+    response_model=Itinerary,
+    status_code=201,
+    tags=["itineraries"],
+    summary="Crear itinerario",
+    description="""
+Crea un nuevo itinerario de viaje con uno o más tramos.
+
+**Validación:** Cada código IATA de origen y destino es validado contra
+el Microservicio de Aeropuertos antes de guardar. Si algún IATA no existe
+retorna 400. Si el servicio de aeropuertos no está disponible retorna 503.
+    """
+)
 def create_itinerary(data: ItineraryCreate):
     for leg in data.legs:
         validate_iata(leg.origin_iata)
@@ -141,7 +199,14 @@ def create_itinerary(data: ItineraryCreate):
     conn.close()
     return {"id": itinerary_id, "title": data.title, "legs": legs_result}
 
-@app.put("/itineraries/{itinerary_id}", response_model=Itinerary)
+
+@app.put(
+    "/itineraries/{itinerary_id}",
+    response_model=Itinerary,
+    tags=["itineraries"],
+    summary="Actualizar itinerario",
+    description="Actualiza el título y los tramos de un itinerario existente. Retorna 404 si no existe."
+)
 def update_itinerary(itinerary_id: int, data: ItineraryCreate):
     for leg in data.legs:
         validate_iata(leg.origin_iata)
@@ -175,7 +240,14 @@ def update_itinerary(itinerary_id: int, data: ItineraryCreate):
     conn.close()
     return {"id": itinerary_id, "title": data.title, "legs": legs_result}
 
-@app.delete("/itineraries/{itinerary_id}", status_code=204)
+
+@app.delete(
+    "/itineraries/{itinerary_id}",
+    status_code=204,
+    tags=["itineraries"],
+    summary="Eliminar itinerario",
+    description="Elimina un itinerario y todos sus tramos en cascada. Retorna 404 si no existe."
+)
 def delete_itinerary(itinerary_id: int):
     conn = get_db()
     result = conn.execute("DELETE FROM itineraries WHERE id = ?", (itinerary_id,))
