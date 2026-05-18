@@ -70,11 +70,14 @@ jobs:
           name: coverage-itinerary-service
           path: itinerary_service/coverage.xml
 
-  # ── Build de imágenes Docker ──────────────────────────────────────────────
+  # ── Build y publicar imágenes Docker en GHCR ─────────────────────────────
   build-docker:
     name: Build — Docker Images
     runs-on: ubuntu-latest
     needs: [test-airport-service, test-itinerary-service]
+    permissions:
+      contents: read
+      packages: write
 
     steps:
       - name: Checkout código
@@ -83,18 +86,35 @@ jobs:
       - name: Configurar Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build imagen Airport Service
-        run: |
-          docker build -t itinerary-airport-service:${{ github.sha }} ./airport_service
-          echo "✅ Airport Service image built successfully"
+      - name: Login a GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build imagen Itinerary Service
-        run: |
-          docker build -t itinerary-itinerary-service:${{ github.sha }} ./itinerary_service
-          echo "✅ Itinerary Service image built successfully"
+      - name: Build y publicar Airport Service
+        uses: docker/build-push-action@v5
+        with:
+          context: ./airport_service
+          push: ${{ github.ref == 'refs/heads/main' }}
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/itinerary-airport-service:latest
+            ghcr.io/${{ github.repository_owner }}/itinerary-airport-service:${{ github.sha }}
 
-      - name: Verificar imágenes construidas
-        run: docker images | grep itinerary
+      - name: Build y publicar Itinerary Service
+        uses: docker/build-push-action@v5
+        with:
+          context: ./itinerary_service
+          push: ${{ github.ref == 'refs/heads/main' }}
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/itinerary-itinerary-service:latest
+            ghcr.io/${{ github.repository_owner }}/itinerary-itinerary-service:${{ github.sha }}
+
+      - name: Resumen de imágenes publicadas
+        run: |
+          echo "✅ Airport Service → ghcr.io/${{ github.repository_owner }}/itinerary-airport-service:latest"
+          echo "✅ Itinerary Service → ghcr.io/${{ github.repository_owner }}/itinerary-itinerary-service:latest"
 
   # ── Validación del Frontend ───────────────────────────────────────────────
   validate-frontend:
