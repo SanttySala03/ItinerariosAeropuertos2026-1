@@ -73,16 +73,16 @@ jobs:
           context: ./airport_service
           push: ${{ github.ref == 'refs/heads/main' }}
           tags: |
-            ghcr.io/santysala03/itinerary-airport-service:latest
-            ghcr.io/santysala03/itinerary-airport-service:${{ github.sha }}
+            ghcr.io/santysala03/itinerariosaeropuertos2026-1/airport-service:latest
+            ghcr.io/santysala03/itinerariosaeropuertos2026-1/airport-service:${{ github.sha }}
       - name: Build Itinerary Service
         uses: docker/build-push-action@v5
         with:
           context: ./itinerary_service
           push: ${{ github.ref == 'refs/heads/main' }}
           tags: |
-            ghcr.io/santysala03/itinerary-itinerary-service:latest
-            ghcr.io/santysala03/itinerary-itinerary-service:${{ github.sha }}
+            ghcr.io/santysala03/itinerariosaeropuertos2026-1/itinerary-service:latest
+            ghcr.io/santysala03/itinerariosaeropuertos2026-1/itinerary-service:${{ github.sha }}
       - name: Resumen
         run: |
           echo Airport Service OK
