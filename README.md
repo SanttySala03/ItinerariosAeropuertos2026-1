@@ -7,32 +7,31 @@ Aplicación web para planificar itinerarios de viaje entre aeropuertos nacionale
 ## 🏗 Arquitectura Utilizada
 
 El sistema implementa una **Arquitectura de Microservicios** con **Arquitectura Hexagonal** en cada servicio y el **Patrón Adapter** para el desacoplamiento de fuentes externas.
-┌─────────────────────────────────────────────────────────┐
-│                     Navegador Web                        │
-│              Frontend SPA (HTML/CSS/JS)                  │
-│                    Leaflet.js                            │
-└───────────────┬─────────────────┬───────────────────────┘
-│ REST HTTP        │ REST HTTP
-▼                  ▼
-┌──────────────────────┐  ┌──────────────────────────────┐
-│  API Aeropuertos     │  │   API Itinerarios             │
-│  Puerto 8001         │◄─┤   Puerto 8002                 │
-│                      │  │   (valida IATA via HTTP)      │
-│  ┌────────────────┐  │  │  ┌────────────────────────┐  │
-│  │ domain/        │  │  │  │ domain/                │  │
-│  │ ports/         │  │  │  │ ports/                 │  │
-│  │ adapters/      │  │  │  │ adapters/              │  │
-│  │ infrastructure/│  │  │  │ infrastructure/        │  │
-│  └────────────────┘  │  │  └────────────────────────┘  │
-│                      │  │                               │
-│  SQLite airports.db  │  │  SQLite itineraries.db        │
-└──────────────────────┘  └──────────────────────────────┘
-│                              │
-▼
-┌──────────────────┐
-│  API Colombia    │
-│  (fuente externa)│
-└──────────────────┘
+
+```mermaid
+graph TB
+  FE[Frontend SPA - HTML/CSS/JS + Leaflet.js]
+  FE -->|REST HTTP GET /airports| API1[API Aeropuertos :8001]
+  FE -->|REST HTTP POST/GET/DELETE /itineraries| API2[API Itinerarios :8002]
+  API2 -->|valida IATA via HTTP| API1
+  API1 --> DB1[(SQLite airports.db)]
+  API2 --> DB2[(SQLite itineraries.db)]
+  API1 -->|POST /airports/sync - Patron Adapter| EXT[API Colombia - fuente externa]
+
+  subgraph HEX1[Arquitectura Hexagonal - Airport Service]
+    DOM1[domain/models.py]
+    PORT1[ports/airport_port.py]
+    ADP1[adapters/api_colombia_adapter.py]
+    INF1[infrastructure/database.py]
+  end
+
+  subgraph HEX2[Arquitectura Hexagonal - Itinerary Service]
+    DOM2[domain/models.py]
+    PORT2[ports/itinerary_port.py]
+    ADP2[adapters/airport_validator.py]
+    INF2[infrastructure/database.py]
+  end
+```
 
 ### Decisión sobre Leaflet vs Plotly
 El sistema utiliza **Leaflet.js** en lugar de Plotly JS por su especialización en cartografía interactiva, soporte nativo de tiles geográficos (OpenStreetMap, CartoDB) y capacidad para renderizar rutas de vuelo como curvas de Bézier cuadráticas. Plotly es superior para gráficas estadísticas pero no para mapas de viaje interactivos.
@@ -42,21 +41,37 @@ El sistema utiliza **Leaflet.js** en lugar de Plotly JS por su especialización 
 ## 🔌 Patrón Adapter Implementado
 
 El patrón Adapter desacopla el dominio de las fuentes externas de datos.
-┌─────────────────┐     ┌─────────────────────┐     ┌──────────────────┐
-│   <<interface>> │     │     <<Adapter>>      │     │    <<Adaptee>>   │
-│   AirportPort   │◄────│ ApiColombiaAdapter   │────►│   API Colombia   │
-│                 │     │                      │     │ api-colombia.com │
-│ + get_all()     │     │ + _fetch(url)        │     │                  │
-│ + get_by_id()   │     │ + _map(data)         │     │ GET /Airport     │
-│ + get_by_iata() │     │ + get_all()          │     │ GET /Airport/{id}│
-└─────────────────┘     │ + get_by_id()        │     └──────────────────┘
-▲              │ + get_by_iata()      │
-│              └─────────────────────┘
-│
-│              ┌─────────────────────┐
-└──────────────│ SQLiteAirportAdapter │
-│ (adapter alternativo)│
-└─────────────────────┘
+
+```mermaid
+classDiagram
+  class AirportPort {
+    <<interface>>
+    +get_all() List
+    +get_by_id(id) Airport
+    +get_by_iata(code) Airport
+  }
+  class ApiColombiaAdapter {
+    +get_all() List
+    +get_by_id(id) Airport
+    +get_by_iata(code) Airport
+    -_fetch(url) dict
+    -_map(data) Airport
+  }
+  class SQLiteAirportAdapter {
+    +get_all() List
+    +get_by_id(id) Airport
+    +get_by_iata(code) Airport
+    +create(data) Airport
+    +update(id, data) Airport
+    +delete(id) bool
+  }
+  class AirportValidatorAdapter {
+    +validate(iata_code) bool
+  }
+  AirportPort <|-- ApiColombiaAdapter : implementa
+  AirportPort <|-- SQLiteAirportAdapter : implementa
+  AirportValidatorAdapter --> AirportPort : consulta via HTTP
+```
 
 **Componentes del patrón:**
 - **Target (Puerto):** `AirportPort` — interfaz abstracta que define el contrato del dominio
@@ -65,12 +80,16 @@ El patrón Adapter desacopla el dominio de las fuentes externas de datos.
 - **Client:** endpoints de FastAPI — solo conocen `AirportPort`, nunca la API externa
 
 **Endpoint de sincronización:**
+```
 POST /airports/sync
+```
 Consume API Colombia, traduce los datos mediante el Adapter e importa los aeropuertos colombianos al catálogo local.
 
 ---
 
 ## 🗂 Estructura del Proyecto
+
+```
 ItinerariosAeropuertos2026-1/
 ├── airport_service/              # Microservicio Aeropuertos :8001
 │   ├── domain/
@@ -108,63 +127,119 @@ ItinerariosAeropuertos2026-1/
 │   └── datepicker.js
 ├── docker-compose.yml
 └── README.md
+```
 
 ---
 
 ## 📊 Diagrama de Componentes
-[Frontend SPA]──GET /airports──►[API Aeropuertos :8001]──►[airports.db]
-[Frontend SPA]──POST/GET/DELETE /itineraries──►[API Itinerarios :8002]──►[itineraries.db]
-[API Itinerarios]──GET /airports/iata/{code}──►[API Aeropuertos :8001]
-[API Aeropuertos]──POST /airports/sync──►[API Colombia Externa]
-[GitHub Actions]──build & push──►[GHCR: airport-service:latest]
-[GitHub Actions]──build & push──►[GHCR: itinerary-service:latest]
+
+```mermaid
+graph LR
+  FE[Frontend SPA]
+  API1[API Aeropuertos :8001]
+  API2[API Itinerarios :8002]
+  DB1[(airports.db)]
+  DB2[(itineraries.db)]
+  EXT[API Colombia]
+  GH[GitHub Actions CI/CD]
+  GHCR[GitHub Container Registry]
+
+  FE -->|GET /airports| API1
+  FE -->|POST /itineraries| API2
+  FE -->|GET /itineraries| API2
+  FE -->|DELETE /itineraries/id| API2
+  API2 -->|GET /airports/iata/code| API1
+  API1 -->|POST /airports/sync| EXT
+  API1 --> DB1
+  API2 --> DB2
+  GH -->|push a main| GHCR
+```
 
 ---
 
 ## 📐 Diagrama de Clases
-Airport                          Itinerary
-────────────────────             ──────────────────────
 
-id: int                        + id: int
-name: str                      + title: str
-city: str                      + user_name: str
-department: str                + legs: List[Leg]
-iata_code: str                 + to_dict()
-latitude: float
-longitude: float               Leg
-to_dict()                      ──────────────────────
-+ id: int
-AirportPort <<interface>>        + itinerary_id: int
-────────────────────             + origin_iata: str
-get_all()                      + destination_iata: str
-get_by_id()                    + departure_datetime: str
-get_by_iata()                  + arrival_datetime: str
-▲                          + to_dict()
-│
-├── ApiColombiaAdapter
-└── SQLiteAirportAdapter
-
+```mermaid
+classDiagram
+  class Airport {
+    +int id
+    +str name
+    +str city
+    +str department
+    +str iata_code
+    +float latitude
+    +float longitude
+    +to_dict() dict
+  }
+  class Itinerary {
+    +int id
+    +str title
+    +str user_name
+    +List legs
+    +to_dict() dict
+  }
+  class Leg {
+    +int id
+    +int itinerary_id
+    +str origin_iata
+    +str destination_iata
+    +str departure_datetime
+    +str arrival_datetime
+    +to_dict() dict
+  }
+  class AirportPort {
+    <<interface>>
+    +get_all() List
+    +get_by_id(id) Airport
+    +get_by_iata(code) Airport
+  }
+  class ItineraryPort {
+    <<interface>>
+    +get_all() List
+    +get_by_id(id) Itinerary
+    +create(title, user_name, legs) Itinerary
+    +delete(id) bool
+  }
+  Itinerary "1" --> "1..*" Leg : contiene
+  Leg --> Airport : origin_iata
+  Leg --> Airport : destination_iata
+  AirportPort <|-- ApiColombiaAdapter
+  AirportPort <|-- SQLiteAirportAdapter
+  ItineraryPort <|-- SQLiteItineraryAdapter
+```
 
 ---
 
 ## 🗄 Diagrama Relacional
-airports (airports.db)
-────────────────────────────────────
-id          INTEGER  PK AUTOINCREMENT
-name        TEXT     NOT NULL
-city        TEXT     NOT NULL
-department  TEXT     NOT NULL
-iata_code   TEXT     UNIQUE NOT NULL
-latitude    REAL     NOT NULL
-longitude   REAL     NOT NULL
-itineraries (itineraries.db)          legs (itineraries.db)
-──────────────────────────────        ────────────────────────────────────────
-id        INTEGER  PK                 id                  INTEGER  PK
-title     TEXT     NOT NULL           itinerary_id        INTEGER  FK → itineraries(id)
-user_name TEXT     NOT NULL           origin_iata         TEXT     NOT NULL
-destination_iata    TEXT     NOT NULL
-departure_datetime  TEXT     NOT NULL
-arrival_datetime    TEXT     NOT NULL
+
+```mermaid
+erDiagram
+  AIRPORTS {
+    integer id PK
+    text name
+    text city
+    text department
+    text iata_code UK
+    real latitude
+    real longitude
+  }
+  ITINERARIES {
+    integer id PK
+    text title
+    text user_name
+  }
+  LEGS {
+    integer id PK
+    integer itinerary_id FK
+    text origin_iata
+    text destination_iata
+    text departure_datetime
+    text arrival_datetime
+  }
+  ITINERARIES ||--o{ LEGS : contiene
+  LEGS }o--|| AIRPORTS : origin_iata
+  LEGS }o--|| AIRPORTS : destination_iata
+```
 
 ---
 
@@ -192,8 +267,8 @@ python -m uvicorn main:app --reload --port 8002
 # 5. Cargar aeropuertos iniciales
 python airport_service/seed.py
 
-# 6. (Opcional) Sincronizar con API Colombia
-# POST http://127.0.0.1:8001/airports/sync
+# 6. Opcional - Sincronizar con API Colombia
+# POST http://127.0.0.1:8001/airports/sync desde Swagger
 
 # 7. Abrir frontend/index.html con Live Server en VS Code
 ```
@@ -208,7 +283,6 @@ docker-compose up --build
 
 | Servicio | URL |
 |---|---|
-| Frontend | Abrir frontend/index.html con Live Server |
 | API Aeropuertos | http://127.0.0.1:8001 |
 | API Itinerarios | http://127.0.0.1:8002 |
 | Swagger Aeropuertos | http://127.0.0.1:8001/docs |
@@ -219,11 +293,11 @@ docker-compose up --build
 ## 🧪 Pruebas Unitarias
 
 ```bash
-# Airport Service
+# Airport Service - 9 pruebas
 cd airport_service
 pytest tests/ -v --cov=. --cov-report=term-missing
 
-# Itinerary Service
+# Itinerary Service - 7 pruebas
 cd itinerary_service
 pytest tests/ -v --cov=. --cov-report=term-missing
 ```
@@ -232,17 +306,20 @@ pytest tests/ -v --cov=. --cov-report=term-missing
 
 ## ⚙️ Pipeline CI/CD
 
-GitHub Actions ejecuta automáticamente en cada push:
+GitHub Actions ejecuta automáticamente en cada push a `main`, `develop` y `feature/**`:
 
-1. **Test Airport Service** — PyTest con reporte de cobertura
-2. **Test Itinerary Service** — PyTest con reporte de cobertura
-3. **Build Docker Images** — Solo si pasan los tests
-4. **Validate Frontend** — Verifica estructura de archivos
+1. **Test Airport Service** — PyTest con reporte de cobertura XML
+2. **Test Itinerary Service** — PyTest con reporte de cobertura XML
+3. **Build Docker Images** — Solo si pasan los dos jobs de pruebas
+4. **Validate Frontend** — Verifica estructura de archivos y DOCTYPE
 5. **Pipeline Summary** — Estado de todos los jobs
 
 Imágenes publicadas en GitHub Container Registry:
-- `ghcr.io/santysala03/itinerariosaeropuertos2026-1/airport-service:latest`
-- `ghcr.io/santysala03/itinerariosaeropuertos2026-1/itinerary-service:latest`
+
+```
+ghcr.io/santysala03/itinerariosaeropuertos2026-1/airport-service:latest
+ghcr.io/santysala03/itinerariosaeropuertos2026-1/itinerary-service:latest
+```
 
 ---
 
@@ -261,7 +338,7 @@ Adicionalmente, `POST /airports/sync` importa todos los aeropuertos colombianos 
 
 ## 👨‍💻 Autor
 
-**David Santiago Carrillo Salamanca**  
+**David Santiago Carrillo Salamanca**
 Ingeniería de Software II · Universidad Central · 2026
 
 **Docente:** Otoniel Humberto Castañeda Rodriguez
