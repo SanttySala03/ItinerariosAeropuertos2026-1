@@ -102,7 +102,7 @@ jobs:
       - name: Verificar HTML
         run: grep -q '<!DOCTYPE html>' frontend/index.html && echo DOCTYPE OK || exit 1
 
-sonarcloud:
+  sonarcloud:
     name: SonarCloud Analysis
     runs-on: ubuntu-latest
     needs: [test-airport-service, test-itinerary-service]
@@ -119,7 +119,7 @@ sonarcloud:
   pipeline-summary:
     name: Pipeline Summary
     runs-on: ubuntu-latest
-    needs: [test-airport-service, test-itinerary-service, build-docker, validate-frontend]
+    needs: [test-airport-service, test-itinerary-service, build-docker, validate-frontend, sonarcloud]
     if: always()
     steps:
       - name: Resumen
