@@ -38,14 +38,14 @@ class SQLiteAirportAdapter(AirportPort):
 
     def _map(self, row) -> Airport:
         return Airport(
-            id=row["id"],
-            name=row["name"],
-            city=row["city"],
-            department=row.get("department", ""),
-            iata_code=row["iata_code"],
-            latitude=row["latitude"],
-            longitude=row["longitude"],
-        )
+        id=row["id"],
+        name=row["name"],
+        city=row["city"],
+        department=row["department"] if "department" in row.keys() else "",
+        iata_code=row["iata_code"],
+        latitude=row["latitude"],
+        longitude=row["longitude"],
+    )
 
     def get_all(self) -> List[Airport]:
         conn = self._get_conn()
