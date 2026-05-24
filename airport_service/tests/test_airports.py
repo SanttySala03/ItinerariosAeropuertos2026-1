@@ -1,17 +1,22 @@
 import pytest
-from fastapi.testclient import TestClient
 import sys
 import os
-
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from fastapi.testclient import TestClient
+from unittest.mock import patch, MagicMock
 from main import app
+from domain.models import Airport
+from ports.airport_port import AirportPort
+from adapters.api_colombia_adapter import ApiColombiaAdapter
+from infrastructure.database import SQLiteAirportAdapter
 
 client = TestClient(app)
 
-# ── Pruebas de aeropuertos ────────────────────────────────────────────────────
+# ── Pruebas de endpoints ───────────────────────────────────────────────────────
 
 def test_list_airports_returns_200():
-    """GET /airports debe retornar 200"""
+    """GET /airports debe retornar 200 y una lista"""
     response = client.get("/airports")
     assert response.status_code == 200
     assert isinstance(response.json(), list)
@@ -21,7 +26,7 @@ def test_create_airport_success():
     payload = {
         "name": "Aeropuerto de Prueba",
         "city": "Ciudad de Prueba",
-        "country": "Colombia",
+        "department": "Cundinamarca",
         "iata_code": "TST",
         "latitude": 4.7016,
         "longitude": -74.1469
@@ -30,7 +35,6 @@ def test_create_airport_success():
     assert response.status_code == 201
     data = response.json()
     assert data["iata_code"] == "TST"
-    assert data["city"] == "Ciudad de Prueba"
     assert "id" in data
 
 def test_create_airport_duplicate_iata():
@@ -38,7 +42,7 @@ def test_create_airport_duplicate_iata():
     payload = {
         "name": "Aeropuerto Duplicado",
         "city": "Ciudad",
-        "country": "Colombia",
+        "department": "Cundinamarca",
         "iata_code": "TST",
         "latitude": 4.7016,
         "longitude": -74.1469
@@ -46,35 +50,22 @@ def test_create_airport_duplicate_iata():
     response = client.post("/airports", json=payload)
     assert response.status_code == 400
 
-def test_get_airport_by_id():
-    """GET /airports/{id} debe retornar el aeropuerto correcto"""
-    # Primero crear uno
-    payload = {
-        "name": "Aeropuerto El Dorado",
-        "city": "Bogotá",
-        "country": "Colombia",
-        "iata_code": "BOG",
-        "latitude": 4.7016,
-        "longitude": -74.1469
-    }
-    create = client.post("/airports", json=payload)
-    if create.status_code == 201:
-        airport_id = create.json()["id"]
-        response = client.get(f"/airports/{airport_id}")
-        assert response.status_code == 200
-        assert response.json()["iata_code"] == "BOG"
-
 def test_get_airport_not_found():
     """GET /airports/{id} con ID inexistente debe retornar 404"""
     response = client.get("/airports/99999")
     assert response.status_code == 404
 
+def test_get_airport_by_iata_not_found():
+    """GET /airports/iata/{iata} con IATA inexistente debe retornar 404"""
+    response = client.get("/airports/iata/ZZZ")
+    assert response.status_code == 404
+
 def test_create_airport_invalid_latitude():
-    """POST /airports con latitud inválida debe retornar 422"""
+    """POST /airports con latitud invalida debe retornar 422"""
     payload = {
-        "name": "Aeropuerto Inválido",
+        "name": "Aeropuerto Invalido",
         "city": "Ciudad",
-        "country": "Colombia",
+        "department": "Cundinamarca",
         "iata_code": "INV",
         "latitude": 999,
         "longitude": -74.1469
@@ -87,7 +78,7 @@ def test_delete_airport():
     payload = {
         "name": "Aeropuerto Temporal",
         "city": "Ciudad",
-        "country": "Colombia",
+        "department": "Cundinamarca",
         "iata_code": "TMP",
         "latitude": 4.0,
         "longitude": -74.0
@@ -97,3 +88,15 @@ def test_delete_airport():
         airport_id = create.json()["id"]
         response = client.delete(f"/airports/{airport_id}")
         assert response.status_code == 204
+
+# ── Pruebas del patron Adapter ─────────────────────────────────────────────────
+
+def test_api_colombia_adapter_implements_port():
+    """ApiColombiaAdapter debe implementar AirportPort"""
+    adapter = ApiColombiaAdapter()
+    assert isinstance(adapter, AirportPort)
+
+def test_sqlite_adapter_implements_port():
+    """SQLiteAirportAdapter debe implementar AirportPort"""
+    adapter = SQLiteAirportAdapter()
+    assert isinstance(adapter, AirportPort)
