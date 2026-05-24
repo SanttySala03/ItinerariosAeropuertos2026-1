@@ -1,257 +1,82 @@
+﻿import sys
+import os
+sys.path.insert(0, os.path.dirname(__file__))
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
-import sqlite3
-import os
+from typing import List, Optional
+
+from domain.models import Itinerary, Leg
+from ports.itinerary_port import ItineraryPort
+from adapters.airport_validator import AirportValidatorAdapter
+from infrastructure.database import SQLiteItineraryAdapter
 
 app = FastAPI(
-    title="Itinerary — Itinerary Service",
-    version="1.0.0",
-    description="""
-## Microservicio de Itinerarios
-
-Gestiona los itinerarios de viaje y sus tramos en el sistema Itinerary.
-
-### Funcionalidades
-- Consultar todos los itinerarios con sus tramos
-- Crear itinerarios con múltiples tramos y escalas
-- Actualizar itinerarios existentes
-- Eliminar itinerarios y sus tramos en cascada
-
-### Validación
-Antes de guardar un itinerario, este servicio **valida los códigos IATA**
-consultando el Microservicio de Aeropuertos en el puerto 8001.
-    """,
-    contact={
-        "name": "David Santiago Carrillo Salamanca",
-        "url": "https://github.com/SanttySala03/ItinerariosAeropuertos2026-1",
-    },
-    license_info={
-        "name": "Universidad Central — Ingeniería de Software II — 2026",
-    },
-    openapi_tags=[
-        {
-            "name": "itineraries",
-            "description": "Operaciones CRUD sobre itinerarios de viaje con soporte para múltiples tramos",
-        }
-    ]
+    title="Itinerary - Itinerary Service",
+    version="2.0.0",
+    description="Microservicio de Itinerarios con arquitectura hexagonal y patron Adapter",
+    openapi_tags=[{"name": "itineraries", "description": "CRUD de itinerarios con validacion de aeropuertos"}]
 )
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
-DB_PATH = os.path.join(os.path.dirname(__file__), "itineraries.db")
-AIRPORT_SERVICE_URL = "http://127.0.0.1:8001"
+db = SQLiteItineraryAdapter()
+db.init_db()
+validator = AirportValidatorAdapter()
 
-# ── Modelos de datos ──────────────────────────────────────────────
 class LegCreate(BaseModel):
-    origin_iata: str = Field(..., min_length=3, max_length=3, example="BOG")
-    destination_iata: str = Field(..., min_length=3, max_length=3, example="MAD")
-    departure_datetime: str = Field(..., description="Formato: YYYY-MM-DD HH:MM", example="2026-06-01 10:00")
-    arrival_datetime: str = Field(..., description="Formato: YYYY-MM-DD HH:MM", example="2026-06-02 08:00")
-
-class Leg(LegCreate):
-    id: int
-    itinerary_id: int
+    origin_iata: str = Field(..., min_length=3, max_length=3)
+    destination_iata: str = Field(..., min_length=3, max_length=3)
+    departure_datetime: str
+    arrival_datetime: str
 
 class ItineraryCreate(BaseModel):
-    title: str = Field(..., min_length=3, max_length=100, example="Vacaciones en Europa")
-    legs: list[LegCreate] = Field(..., min_length=1)
+    title: str = Field(..., min_length=3, max_length=100)
+    user_name: str = Field(..., min_length=2, max_length=60)
+    legs: List[LegCreate] = Field(..., min_length=1)
 
-class Itinerary(BaseModel):
+class LegResponse(BaseModel):
+    id: int
+    itinerary_id: int
+    origin_iata: str
+    destination_iata: str
+    departure_datetime: str
+    arrival_datetime: str
+
+class ItineraryResponse(BaseModel):
     id: int
     title: str
-    legs: list[Leg]
+    user_name: str
+    legs: List[LegResponse]
 
-# ── Base de datos ─────────────────────────────────────────────────
-def get_db():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
-
-def init_db():
-    conn = get_db()
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS itineraries (
-            id    INTEGER PRIMARY KEY AUTOINCREMENT,
-            title TEXT NOT NULL
-        )
-    """)
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS legs (
-            id                 INTEGER PRIMARY KEY AUTOINCREMENT,
-            itinerary_id       INTEGER NOT NULL,
-            origin_iata        TEXT NOT NULL,
-            destination_iata   TEXT NOT NULL,
-            departure_datetime TEXT NOT NULL,
-            arrival_datetime   TEXT NOT NULL,
-            FOREIGN KEY (itinerary_id) REFERENCES itineraries(id) ON DELETE CASCADE
-        )
-    """)
-    conn.commit()
-    conn.close()
-
-init_db()
-
-# ── Validación con microservicio de aeropuertos ───────────────────
-def validate_iata(iata_code: str):
-    try:
-        import urllib.request
-        import json as json_lib
-        with urllib.request.urlopen(f"{AIRPORT_SERVICE_URL}/airports", timeout=5) as r:
-            airports = json_lib.loads(r.read())
-        codes = [a["iata_code"] for a in airports]
-        if iata_code.upper() not in codes:
-            raise HTTPException(
-                status_code=400,
-                detail=f"El código IATA '{iata_code.upper()}' no existe en el sistema"
-            )
-    except Exception as e:
-        if isinstance(e, HTTPException):
-            raise e
-        raise HTTPException(
-            status_code=503,
-            detail="No se puede conectar con el servicio de aeropuertos"
-        )
-
-# ── Endpoints ─────────────────────────────────────────────────────
-@app.get(
-    "/itineraries",
-    response_model=list[Itinerary],
-    tags=["itineraries"],
-    summary="Listar itinerarios",
-    description="Retorna todos los itinerarios registrados con sus tramos anidados."
-)
+@app.get("/itineraries", response_model=List[ItineraryResponse], tags=["itineraries"], summary="Listar itinerarios")
 def list_itineraries():
-    conn = get_db()
-    itineraries = conn.execute("SELECT * FROM itineraries").fetchall()
-    result = []
-    for itin in itineraries:
-        legs = conn.execute(
-            "SELECT * FROM legs WHERE itinerary_id = ?", (itin["id"],)
-        ).fetchall()
-        result.append({"id": itin["id"], "title": itin["title"], "legs": [dict(l) for l in legs]})
-    conn.close()
-    return result
+    return [i.to_dict() for i in db.get_all()]
 
-
-@app.get(
-    "/itineraries/{itinerary_id}",
-    response_model=Itinerary,
-    tags=["itineraries"],
-    summary="Obtener itinerario",
-    description="Obtiene un itinerario específico con todos sus tramos. Retorna 404 si no existe."
-)
+@app.get("/itineraries/{itinerary_id}", response_model=ItineraryResponse, tags=["itineraries"], summary="Obtener itinerario")
 def get_itinerary(itinerary_id: int):
-    conn = get_db()
-    itin = conn.execute("SELECT * FROM itineraries WHERE id = ?", (itinerary_id,)).fetchone()
-    if not itin:
+    itinerary = db.get_by_id(itinerary_id)
+    if not itinerary:
         raise HTTPException(status_code=404, detail="Itinerario no encontrado")
-    legs = conn.execute(
-        "SELECT * FROM legs WHERE itinerary_id = ?", (itinerary_id,)
-    ).fetchall()
-    conn.close()
-    return {"id": itin["id"], "title": itin["title"], "legs": [dict(l) for l in legs]}
+    return itinerary.to_dict()
 
-
-@app.post(
-    "/itineraries",
-    response_model=Itinerary,
-    status_code=201,
-    tags=["itineraries"],
-    summary="Crear itinerario",
-    description="""
-Crea un nuevo itinerario de viaje con uno o más tramos.
-
-**Validación:** Cada código IATA de origen y destino es validado contra
-el Microservicio de Aeropuertos antes de guardar. Si algún IATA no existe
-retorna 400. Si el servicio de aeropuertos no está disponible retorna 503.
-    """
-)
+@app.post("/itineraries", response_model=ItineraryResponse, status_code=201, tags=["itineraries"], summary="Crear itinerario")
 def create_itinerary(data: ItineraryCreate):
-    for leg in data.legs:
-        validate_iata(leg.origin_iata)
-        validate_iata(leg.destination_iata)
+    try:
+        for leg in data.legs:
+            if not validator.validate(leg.origin_iata):
+                raise HTTPException(status_code=400, detail=f"IATA '{leg.origin_iata.upper()}' no existe")
+            if not validator.validate(leg.destination_iata):
+                raise HTTPException(status_code=400, detail=f"IATA '{leg.destination_iata.upper()}' no existe")
+    except HTTPException:
+        raise
+    except ConnectionError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    itinerary = db.create(title=data.title, user_name=data.user_name, legs=[l.model_dump() for l in data.legs])
+    return itinerary.to_dict()
 
-    conn = get_db()
-    cur = conn.execute("INSERT INTO itineraries (title) VALUES (?)", (data.title,))
-    itinerary_id = cur.lastrowid
-
-    legs_result = []
-    for leg in data.legs:
-        cur = conn.execute(
-            "INSERT INTO legs (itinerary_id, origin_iata, destination_iata, departure_datetime, arrival_datetime) VALUES (?,?,?,?,?)",
-            (itinerary_id, leg.origin_iata.upper(), leg.destination_iata.upper(), leg.departure_datetime, leg.arrival_datetime)
-        )
-        legs_result.append({
-            "id": cur.lastrowid,
-            "itinerary_id": itinerary_id,
-            **leg.model_dump(),
-            "origin_iata": leg.origin_iata.upper(),
-            "destination_iata": leg.destination_iata.upper()
-        })
-
-    conn.commit()
-    conn.close()
-    return {"id": itinerary_id, "title": data.title, "legs": legs_result}
-
-
-@app.put(
-    "/itineraries/{itinerary_id}",
-    response_model=Itinerary,
-    tags=["itineraries"],
-    summary="Actualizar itinerario",
-    description="Actualiza el título y los tramos de un itinerario existente. Retorna 404 si no existe."
-)
-def update_itinerary(itinerary_id: int, data: ItineraryCreate):
-    for leg in data.legs:
-        validate_iata(leg.origin_iata)
-        validate_iata(leg.destination_iata)
-
-    conn = get_db()
-    result = conn.execute(
-        "UPDATE itineraries SET title = ? WHERE id = ?", (data.title, itinerary_id)
-    )
-    if result.rowcount == 0:
-        conn.close()
-        raise HTTPException(status_code=404, detail="Itinerario no encontrado")
-
-    conn.execute("DELETE FROM legs WHERE itinerary_id = ?", (itinerary_id,))
-
-    legs_result = []
-    for leg in data.legs:
-        cur = conn.execute(
-            "INSERT INTO legs (itinerary_id, origin_iata, destination_iata, departure_datetime, arrival_datetime) VALUES (?,?,?,?,?)",
-            (itinerary_id, leg.origin_iata.upper(), leg.destination_iata.upper(), leg.departure_datetime, leg.arrival_datetime)
-        )
-        legs_result.append({
-            "id": cur.lastrowid,
-            "itinerary_id": itinerary_id,
-            **leg.model_dump(),
-            "origin_iata": leg.origin_iata.upper(),
-            "destination_iata": leg.destination_iata.upper()
-        })
-
-    conn.commit()
-    conn.close()
-    return {"id": itinerary_id, "title": data.title, "legs": legs_result}
-
-
-@app.delete(
-    "/itineraries/{itinerary_id}",
-    status_code=204,
-    tags=["itineraries"],
-    summary="Eliminar itinerario",
-    description="Elimina un itinerario y todos sus tramos en cascada. Retorna 404 si no existe."
-)
+@app.delete("/itineraries/{itinerary_id}", status_code=204, tags=["itineraries"], summary="Eliminar itinerario")
 def delete_itinerary(itinerary_id: int):
-    conn = get_db()
-    result = conn.execute("DELETE FROM itineraries WHERE id = ?", (itinerary_id,))
-    conn.commit()
-    conn.close()
-    if result.rowcount == 0:
+    if not db.delete(itinerary_id):
         raise HTTPException(status_code=404, detail="Itinerario no encontrado")
