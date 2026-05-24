@@ -7,6 +7,7 @@ Aplicación web para planificar itinerarios de viaje entre aeropuertos nacionale
 ## 🏗 Arquitectura Utilizada
 
 El sistema implementa una **Arquitectura de Microservicios** con **Arquitectura Hexagonal** en cada servicio y el **Patrón Adapter** para el desacoplamiento de fuentes externas.
+
 ┌─────────────────────────────────────────────────────────┐
 │                     Navegador Web                        │
 │              Frontend SPA (HTML/CSS/JS)                  │
